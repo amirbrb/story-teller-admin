@@ -1,0 +1,29 @@
+# Render Blueprint (https://render.com/docs/blueprint-spec). Optional — you can instead mirror
+# these settings by hand in the Render dashboard for a manually-created Static Site. Either way,
+# both of the following are required for this SPA:
+#
+# 1. Env vars below must be set BEFORE the build runs — Vite bakes VITE_* vars into the JS bundle
+#    at build time, not read at runtime. Adding/changing them requires a new build, not just a
+#    redeploy of existing assets.
+# 2. The rewrite rule below (serve index.html for every path) is required because React Router
+#    handles routing client-side — without it, any URL other than "/" 404s on a fresh load or
+#    page refresh.
+#
+# Vite's build output directory is "dist" (not Create React App's "build") — if a Static Site was
+# created by hand in the Render dashboard instead of from this Blueprint, double check its
+# Publish Directory setting matches staticPublishPath below.
+services:
+  - type: web
+    name: storyteller-admin
+    runtime: static
+    buildCommand: npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
