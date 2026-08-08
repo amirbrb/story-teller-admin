@@ -1,0 +1,81 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebarDesktop {
+  display: none;
+  width: 15rem;
+  flex-shrink: 0;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.hamburger {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: var(--z-sidebar);
+  width: 44px;
+  height: 44px;
+  padding: 0.6rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.hamburger span {
+  display: block;
+  height: 2px;
+  background: var(--color-text);
+  border-radius: 1px;
+}
+
+.drawerBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sidebar);
+  background: color-mix(in srgb, black 45%, transparent);
+}
+
+.drawer {
+  width: 16rem;
+  max-width: 80vw;
+  height: 100%;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+
+@media (min-width: 900px) {
+  .hamburger {
+    display: none;
+  }
+
+  .sidebarDesktop {
+    display: block;
+  }
+
+  .drawerBackdrop {
+    display: none;
+  }
+
+  .content {
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 899px) {
+  .content {
+    padding-top: 3.5rem;
+  }
+}
