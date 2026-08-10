@@ -7,6 +7,10 @@ import Users from './pages/Users'
 import UserDetail from './pages/UserDetail'
 import AiUsage from './pages/AiUsage'
 import AiModels from './pages/AiModels'
+import AiCallLog from './pages/AiCallLog'
+import AiCallLogDetail from './pages/AiCallLogDetail'
+import SystemErrors from './pages/SystemErrors'
+import SystemErrorDetail from './pages/SystemErrorDetail'
 import NotFound from './pages/NotFound'
 
 export default function App() {
@@ -20,6 +24,10 @@ export default function App() {
           <Route path="/users/:userId" element={<UserDetail />} />
           <Route path="/ai-usage" element={<AiUsage />} />
           <Route path="/ai-models" element={<AiModels />} />
+          <Route path="/ai-call-log" element={<AiCallLog />} />
+          <Route path="/ai-call-log/:id" element={<AiCallLogDetail />} />
+          <Route path="/system-errors" element={<SystemErrors />} />
+          <Route path="/system-errors/:id" element={<SystemErrorDetail />} />
         </Route>
       </Route>
       <Route path="*" element={<NotFound />} />
