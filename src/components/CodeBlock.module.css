@@ -1,0 +1,48 @@
+.section {
+  margin-top: 1.5rem;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.label {
+  margin: 0;
+  font-size: var(--text-base);
+}
+
+.meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.block {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+  /* Wrap rather than scroll sideways: these are prompts and JSON replies, and a horizontal
+     scrollbar hides the right-hand half of every long line. Capped so one huge prompt can't push
+     the rest of the page off screen. */
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  max-height: 28rem;
+}
+
+.empty {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
