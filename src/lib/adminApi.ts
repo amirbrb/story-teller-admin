@@ -69,3 +69,70 @@ export async function setAdmin(profileId: string, isAdmin: boolean): Promise<voi
   })
   if (error) throw error
 }
+
+// ---------------------------------------------------------------------------------------------
+// AI model configuration (story-teller/supabase/migrations/0014_admin_ai_models.sql)
+//
+// `ai_chapter_models` is the list of models a writer can pick between when drafting, and the price
+// of each. `ai_settings` holds which model runs the app's internal, machine-facing calls (chapter
+// summaries, the draft quality critic, style analysis) — those are never writer-visible.
+// ---------------------------------------------------------------------------------------------
+
+export type AiModelRow = {
+  id: string
+  label: string
+  description: string | null
+  token_cost: number
+  sort_order: number
+  is_enabled: boolean
+  updated_at: string
+}
+
+export type AiSettingRow = {
+  key: string
+  value: string
+  updated_at: string
+}
+
+export async function listAiModels(): Promise<AiModelRow[]> {
+  const { data, error } = await supabase.rpc('admin_list_ai_models')
+  if (error) throw error
+  return data ?? []
+}
+
+// Insert-or-update by model id: the admin form is the same for adding a new model and editing an
+// existing one, and the OpenRouter id is the natural key in both cases.
+export async function upsertAiModel(model: {
+  id: string
+  label: string
+  description: string | null
+  token_cost: number
+  sort_order: number
+  is_enabled: boolean
+}): Promise<void> {
+  const { error } = await supabase.rpc('admin_upsert_ai_model', {
+    p_id: model.id,
+    p_label: model.label,
+    p_description: model.description,
+    p_token_cost: model.token_cost,
+    p_sort_order: model.sort_order,
+    p_is_enabled: model.is_enabled,
+  })
+  if (error) throw error
+}
+
+export async function deleteAiModel(id: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_delete_ai_model', { p_id: id })
+  if (error) throw error
+}
+
+export async function listAiSettings(): Promise<AiSettingRow[]> {
+  const { data, error } = await supabase.rpc('admin_list_ai_settings')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function setAiSetting(key: string, value: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_ai_setting', { p_key: key, p_value: value })
+  if (error) throw error
+}
