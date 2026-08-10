@@ -16,9 +16,30 @@ import styles from './AiModels.module.css'
 // The internal roles, in the order an operator most likely wants to reason about them. Keys must
 // match admin_set_ai_setting's allowlist in 0014_admin_ai_models.sql.
 const INTERNAL_MODEL_KEYS = [
-  { key: 'summary_model', label: 'Chapter summaries', hint: 'Builds the story bible older chapters are fed to the writer model as.' },
-  { key: 'quality_model', label: 'Draft quality critic', hint: 'Reviews a generated draft for continuity, voice and invented details.' },
-  { key: 'style_model', label: 'Style analysis', hint: 'Powers the writer-facing "Analyze my style" action.' },
+  {
+    key: 'bible_model',
+    label: 'Story bible',
+    hint: 'Maintains each story\'s canon and decides whether a chapter contradicts it. The only model here that can block a save, so a weak one produces false conflicts that stop writers.',
+    optional: false,
+  },
+  {
+    key: 'bible_fallback_model',
+    label: 'Story bible fallback',
+    hint: 'Tried when the model above fails or is rate-limited. Worth setting if that one is free. Leave blank for no fallback.',
+    optional: true,
+  },
+  {
+    key: 'quality_model',
+    label: 'Draft quality critic',
+    hint: 'Reviews a generated draft for continuity, voice and invented details. Advisory only.',
+    optional: false,
+  },
+  {
+    key: 'style_model',
+    label: 'Style analysis',
+    hint: 'Powers the writer-facing "Analyze my style" action.',
+    optional: false,
+  },
 ] as const
 
 type ModelForm = {
@@ -258,11 +279,12 @@ export default function AiModels() {
           Used by the app's own AI calls, never chosen by a writer and never charged for. These
           calls expect JSON back, so prefer a model whose <code className={styles.code}>supported_parameters</code>{' '}
           includes <code className={styles.code}>response_format</code> — one that doesn't is retried without it, but
-          complies less reliably.
+          complies less reliably. The story bible model runs on every substantive chapter save, so it
+          also affects how quickly saving feels.
         </p>
 
         <div className={styles.settingList}>
-          {INTERNAL_MODEL_KEYS.map(({ key, label, hint }) => (
+          {INTERNAL_MODEL_KEYS.map(({ key, label, hint, optional }) => (
             <div key={key} className={styles.settingRow}>
               <div className={styles.settingMeta}>
                 <strong>{label}</strong>
@@ -271,13 +293,15 @@ export default function AiModels() {
               <input
                 value={settings[key] ?? ''}
                 onChange={(e) => setSettings({ ...settings, [key]: e.target.value })}
-                placeholder="OpenRouter model id"
+                placeholder={optional ? 'OpenRouter model id (optional)' : 'OpenRouter model id'}
                 aria-label={label}
               />
+              {/* An optional setting must stay saveable when blank — clearing the fallback is how
+                  you turn it off, so a "don't save empty" guard would make it permanent. */}
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={busy || !(settings[key] ?? '').trim()}
+                disabled={busy || (!optional && !(settings[key] ?? '').trim())}
                 onClick={() => setPendingSetting({ key, label, value: settings[key] ?? '' })}
               >
                 Save
@@ -366,7 +390,11 @@ export default function AiModels() {
       <ConfirmDialog
         open={pendingSetting !== null}
         title="Change this setting?"
-        description={pendingSetting ? `${pendingSetting.label} → ${pendingSetting.value}` : undefined}
+        description={
+          pendingSetting
+            ? `${pendingSetting.label} → ${pendingSetting.value.trim() || '(cleared — no fallback will be used)'}`
+            : undefined
+        }
         confirmLabel="Save"
         busy={busy}
         onCancel={() => setPendingSetting(null)}
