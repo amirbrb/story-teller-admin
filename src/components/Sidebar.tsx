@@ -11,6 +11,7 @@ const links = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/users', label: 'Users', end: false },
   { to: '/ai-usage', label: 'AI Usage', end: false },
+  { to: '/ai-models', label: 'AI Models', end: false },
 ]
 
 export default function Sidebar({ onNavigate }: Props) {

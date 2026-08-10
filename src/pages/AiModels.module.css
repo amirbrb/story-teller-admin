@@ -1,0 +1,115 @@
+/* Section header with an action on the right, wrapping to stacked at narrow widths rather than
+   crushing the button. */
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-block-end: 1rem;
+}
+
+.sectionHead h2 {
+  margin: 0 0 0.25rem;
+}
+
+.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.freeBadge {
+  font-weight: 600;
+  color: var(--color-success);
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.notice {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-inline-start: 3px solid var(--color-primary);
+  border-radius: 4px;
+  background: var(--color-bg);
+  font-size: 0.9rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-block-start: 1.25rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--color-border);
+}
+
+.form h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* auto-fit + minmax so the field grid collapses to one column on a narrow screen without a
+   separate breakpoint. */
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.75rem;
+}
+
+.checkboxRow {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.settingList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+/* Label block, input, then save button — collapses to stacked below the grid's floor so the id
+   input keeps a usable width on a phone. */
+.settingRow {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(14rem, 1.4fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding-block-end: 0.85rem;
+  border-block-end: 1px solid var(--color-border);
+}
+
+.settingRow:last-child {
+  padding-block-end: 0;
+  border-block-end: none;
+}
+
+.settingMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  .settingRow {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
