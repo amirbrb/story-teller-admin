@@ -74,8 +74,8 @@ export async function setAdmin(profileId: string, isAdmin: boolean): Promise<voi
 // AI model configuration (story-teller/supabase/migrations/0014_admin_ai_models.sql)
 //
 // `ai_chapter_models` is the list of models a writer can pick between when drafting, and the price
-// of each. `ai_settings` holds which model runs the app's internal, machine-facing calls (chapter
-// summaries, the draft quality critic, style analysis) — those are never writer-visible.
+// of each. `ai_settings` holds which model runs the app's internal, machine-facing calls (the story
+// bible, style analysis) — those are never writer-visible.
 // ---------------------------------------------------------------------------------------------
 
 export type AiModelRow = {
@@ -151,6 +151,8 @@ export async function setAiSetting(key: string, value: string): Promise<void> {
 
 export const AI_LOG_FUNCTION_NAMES = [
   'generate-chapter',
+  // Retired: the app no longer runs a quality-check pass, so no new rows carry this name. Kept
+  // here so historical rows stay filterable rather than only visible in the unfiltered view.
   'generate-chapter-quality-check',
   'generate-branch-suggestions',
   'maintain-story-bible',
