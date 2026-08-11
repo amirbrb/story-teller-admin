@@ -29,12 +29,6 @@ const INTERNAL_MODEL_KEYS = [
     optional: true,
   },
   {
-    key: 'quality_model',
-    label: 'Draft quality critic',
-    hint: 'Reviews a generated draft for continuity, voice and invented details. Advisory only.',
-    optional: false,
-  },
-  {
     key: 'style_model',
     label: 'Style analysis',
     hint: 'Powers the writer-facing "Analyze my style" action.',
