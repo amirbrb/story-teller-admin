@@ -10,6 +10,7 @@ export type AdminUserRow = {
   display_name: string
   is_premium: boolean
   is_admin: boolean
+  ai_autocomplete_enabled: boolean
   token_balance: number
   created_at: string
   total_count: number
@@ -21,6 +22,7 @@ export type AdminUserDetail = {
   display_name: string
   is_premium: boolean
   is_admin: boolean
+  ai_autocomplete_enabled: boolean
   token_balance: number
   created_at: string
   bio: string | null
@@ -66,6 +68,16 @@ export async function setAdmin(profileId: string, isAdmin: boolean): Promise<voi
   const { error } = await supabase.rpc('admin_set_admin', {
     p_target_profile_id: profileId,
     p_is_admin: isAdmin,
+  })
+  if (error) throw error
+}
+
+// Explicit-trigger AI autocomplete (story-teller/supabase/migrations/0020_ai_autocomplete.sql) —
+// off by default per writer, flipped here rather than through any self-serve setting.
+export async function setAiAutocomplete(profileId: string, enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_ai_autocomplete', {
+    p_target_profile_id: profileId,
+    p_enabled: enabled,
   })
   if (error) throw error
 }
@@ -155,6 +167,7 @@ export const AI_LOG_FUNCTION_NAMES = [
   // here so historical rows stay filterable rather than only visible in the unfiltered view.
   'generate-chapter-quality-check',
   'generate-branch-suggestions',
+  'suggest-continuation',
   'maintain-story-bible',
   'rebuild-story-bible',
   'analyze-story-style',
@@ -163,6 +176,7 @@ export const AI_LOG_FUNCTION_NAMES = [
 export const SYSTEM_ERROR_FUNCTION_NAMES = [
   'generate-chapter',
   'generate-branch-suggestions',
+  'suggest-continuation',
   'analyze-story-style',
   'rebuild-story-bible',
   'submit-chapter',
