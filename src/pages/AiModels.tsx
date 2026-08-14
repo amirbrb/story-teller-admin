@@ -34,6 +34,12 @@ const INTERNAL_MODEL_KEYS = [
     hint: 'Powers the writer-facing "Analyze my style" action.',
     optional: false,
   },
+  {
+    key: 'autocomplete_model',
+    label: 'Autocomplete',
+    hint: 'Powers the "continue writing" ghost-text suggestion writers trigger from the editor. Streamed and explicit-trigger rather than typed-as-you-go, but still needs to feel fast — pick for latency over quality here.',
+    optional: false,
+  },
 ] as const
 
 type ModelForm = {
@@ -324,6 +330,37 @@ export default function AiModels() {
                   key: 'style_analysis_cost',
                   label: 'Style analysis cost',
                   value: settings.style_analysis_cost ?? '',
+                })
+              }
+            >
+              Save
+            </Button>
+          </div>
+
+          <div className={styles.settingRow}>
+            <div className={styles.settingMeta}>
+              <strong>Autocomplete cost</strong>
+              <span className={common.muted}>
+                App tokens charged per suggestion a writer accepts or requests from the editor's "continue writing"
+                button. Keep this low — it's a couple of sentences, not a chapter.
+              </span>
+            </div>
+            <input
+              type="number"
+              min={0}
+              value={settings.autocomplete_cost ?? ''}
+              onChange={(e) => setSettings({ ...settings, autocomplete_cost: e.target.value })}
+              aria-label="Autocomplete cost"
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={busy || !(settings.autocomplete_cost ?? '').trim()}
+              onClick={() =>
+                setPendingSetting({
+                  key: 'autocomplete_cost',
+                  label: 'Autocomplete cost',
+                  value: settings.autocomplete_cost ?? '',
                 })
               }
             >

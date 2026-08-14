@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
 import { useAdminSession } from '@/lib/useAdminSession'
-import { getUser, grantTokens, setPremium, setAdmin, type AdminUserDetail } from '@/lib/adminApi'
+import { getUser, grantTokens, setPremium, setAdmin, setAiAutocomplete, type AdminUserDetail } from '@/lib/adminApi'
 import { formatDate, formatDateTime, formatNumber, formatUsd } from '@/lib/formatters'
 import DataTable, { type Column } from '@/components/DataTable'
 import Button from '@/components/Button'
@@ -32,6 +32,7 @@ type PendingAction =
   | { type: 'grant'; amount: number; note: string }
   | { type: 'premium'; next: boolean }
   | { type: 'admin'; next: boolean }
+  | { type: 'autocomplete'; next: boolean }
 
 export default function UserDetail() {
   const { userId } = useParams<{ userId: string }>()
@@ -92,8 +93,10 @@ export default function UserDetail() {
         setGrantNote('')
       } else if (pending.type === 'premium') {
         await setPremium(userId, pending.next)
-      } else {
+      } else if (pending.type === 'admin') {
         await setAdmin(userId, pending.next)
+      } else {
+        await setAiAutocomplete(userId, pending.next)
       }
       setPending(null)
       loadAll()
@@ -230,6 +233,21 @@ export default function UserDetail() {
               {user.is_admin ? 'Revoke admin' : 'Make admin'}
             </Button>
           </div>
+
+          <div className={styles.actionRow}>
+            <span>
+              {user.ai_autocomplete_enabled
+                ? 'Turn off AI autocomplete (the "continue writing" editor suggestion)'
+                : 'Turn on AI autocomplete (the "continue writing" editor suggestion)'}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setPending({ type: 'autocomplete', next: !user.ai_autocomplete_enabled })}
+            >
+              {user.ai_autocomplete_enabled ? 'Turn off autocomplete' : 'Turn on autocomplete'}
+            </Button>
+          </div>
         </section>
       </div>
 
@@ -256,7 +274,11 @@ export default function UserDetail() {
                 ? pending.next
                   ? 'Grant admin access?'
                   : 'Revoke admin access?'
-                : ''
+                : pending?.type === 'autocomplete'
+                  ? pending.next
+                    ? 'Turn on AI autocomplete?'
+                    : 'Turn off AI autocomplete?'
+                  : ''
         }
         description={
           pending?.type === 'admin' && pending.next
