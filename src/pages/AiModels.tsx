@@ -198,6 +198,7 @@ export default function AiModels() {
           columns={columns}
           rows={models}
           rowKey={(r) => r.id}
+          onRefresh={load}
           loading={loading}
           emptyMessage="No models configured."
         />

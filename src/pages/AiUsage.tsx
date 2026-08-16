@@ -36,8 +36,10 @@ export default function AiUsage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    Promise.all([
+  function load() {
+    setLoading(true)
+    setError(null)
+    return Promise.all([
       supabase.from('ai_usage_by_user').select('*').order('total_cost_usd', { ascending: false }).limit(50),
       supabase.from('ai_usage_by_model').select('*').order('total_cost_usd', { ascending: false }),
       supabase.from('ai_usage_daily').select('*').order('day', { ascending: true }),
@@ -52,6 +54,10 @@ export default function AiUsage() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load AI usage.'))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load()
   }, [])
 
   // ai_usage_daily is grouped by (day, model) — collapse to one total-cost-per-day series for
@@ -96,6 +102,7 @@ export default function AiUsage() {
         columns={userColumns}
         rows={byUser}
         rowKey={(r) => r.profile_id}
+        onRefresh={load}
         loading={loading}
         emptyMessage="No AI usage yet."
       />
@@ -105,6 +112,7 @@ export default function AiUsage() {
         columns={modelColumns}
         rows={byModel}
         rowKey={(r) => r.model}
+        onRefresh={load}
         loading={loading}
         emptyMessage="No AI usage yet."
       />

@@ -4,6 +4,28 @@
   padding: 1.5rem 1.5rem 3rem;
 }
 
+/* For a page that's a table plus a footer (pagination) and nothing else worth scrolling for:
+   bounds the page to exactly one viewport so only the table's own body scrolls, and the footer
+   stays on-screen below it. Pair with DataTable's `fill` prop. */
+.pageFill {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100vh;
+  height: 100dvh;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+@media (max-width: 899px) {
+  .pageFill {
+    height: calc(100vh - var(--mobile-header-height));
+    height: calc(100dvh - var(--mobile-header-height));
+  }
+}
+
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

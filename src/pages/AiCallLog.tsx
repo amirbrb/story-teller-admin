@@ -51,12 +51,12 @@ export default function AiCallLog() {
     setPage(0)
   }
 
-  useEffect(() => {
+  function load() {
     let cancelled = false
     setLoading(true)
     setError(null)
 
-    listAiCallLog(JSON.parse(filterKey) as AiCallLogFilters, PAGE_SIZE, page * PAGE_SIZE)
+    const promise = listAiCallLog(JSON.parse(filterKey) as AiCallLogFilters, PAGE_SIZE, page * PAGE_SIZE)
       .then((data) => {
         if (cancelled) return
         setRows(data.rows)
@@ -70,9 +70,17 @@ export default function AiCallLog() {
         if (!cancelled) setLoading(false)
       })
 
-    return () => {
-      cancelled = true
+    return {
+      cancel: () => {
+        cancelled = true
+      },
+      promise,
     }
+  }
+
+  useEffect(() => {
+    const handle = load()
+    return handle.cancel
   }, [filterKey, page])
 
   const columns: Column<AiCallLogRow>[] = [
@@ -94,7 +102,7 @@ export default function AiCallLog() {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   return (
-    <main className={common.page}>
+    <main className={common.pageFill}>
       <h1>AI Call Log</h1>
       <p className={common.muted}>
         Every OpenRouter call, success or failure. Open a row to see the prompt and the model's reply —
@@ -142,8 +150,10 @@ export default function AiCallLog() {
         rows={rows}
         rowKey={(r) => r.id}
         onRowClick={(r) => navigate(`/ai-call-log/${r.id}`)}
+        onRefresh={() => load().promise}
         loading={loading}
         emptyMessage="No AI calls match these filters."
+        fill
       />
 
       <div className={styles.pagination}>

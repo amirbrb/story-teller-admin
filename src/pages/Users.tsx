@@ -27,12 +27,12 @@ export default function Users() {
     return () => clearTimeout(handle)
   }, [searchInput])
 
-  useEffect(() => {
+  function load() {
     let cancelled = false
     setLoading(true)
     setError(null)
 
-    listUsers(search, PAGE_SIZE, page * PAGE_SIZE)
+    const promise = listUsers(search, PAGE_SIZE, page * PAGE_SIZE)
       .then((data) => {
         if (cancelled) return
         setRows(data)
@@ -46,9 +46,17 @@ export default function Users() {
         if (!cancelled) setLoading(false)
       })
 
-    return () => {
-      cancelled = true
+    return {
+      cancel: () => {
+        cancelled = true
+      },
+      promise,
     }
+  }
+
+  useEffect(() => {
+    const handle = load()
+    return handle.cancel
   }, [search, page])
 
   const columns: Column<AdminUserRow>[] = [
@@ -71,7 +79,7 @@ export default function Users() {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   return (
-    <main className={common.page}>
+    <main className={common.pageFill}>
       <h1>Users</h1>
 
       <input
@@ -94,8 +102,10 @@ export default function Users() {
         rows={rows}
         rowKey={(r) => r.id}
         onRowClick={(r) => navigate(`/users/${r.id}`)}
+        onRefresh={() => load().promise}
         loading={loading}
         emptyMessage="No users found."
+        fill
       />
 
       <div className={styles.pagination}>

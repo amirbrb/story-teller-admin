@@ -46,12 +46,12 @@ export default function SystemErrors() {
     setPage(0)
   }
 
-  useEffect(() => {
+  function load() {
     let cancelled = false
     setLoading(true)
     setError(null)
 
-    listSystemErrors(JSON.parse(filterKey) as SystemErrorFilters, PAGE_SIZE, page * PAGE_SIZE)
+    const promise = listSystemErrors(JSON.parse(filterKey) as SystemErrorFilters, PAGE_SIZE, page * PAGE_SIZE)
       .then((data) => {
         if (cancelled) return
         setRows(data.rows)
@@ -65,9 +65,17 @@ export default function SystemErrors() {
         if (!cancelled) setLoading(false)
       })
 
-    return () => {
-      cancelled = true
+    return {
+      cancel: () => {
+        cancelled = true
+      },
+      promise,
     }
+  }
+
+  useEffect(() => {
+    const handle = load()
+    return handle.cancel
   }, [filterKey, page])
 
   const columns: Column<SystemErrorRow>[] = [
@@ -94,7 +102,7 @@ export default function SystemErrors() {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   return (
-    <main className={common.page}>
+    <main className={common.pageFill}>
       <h1>System Errors</h1>
       <p className={common.muted}>
         Non-AI failures from the edge functions. <strong>Handled</strong> means the function refused the
@@ -142,8 +150,10 @@ export default function SystemErrors() {
         rows={rows}
         rowKey={(r) => r.id}
         onRowClick={(r) => navigate(`/system-errors/${r.id}`)}
+        onRefresh={() => load().promise}
         loading={loading}
         emptyMessage="No system errors match these filters."
+        fill
       />
 
       <div className={styles.pagination}>

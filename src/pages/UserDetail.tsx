@@ -253,12 +253,26 @@ export default function UserDetail() {
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Token transactions</h2>
-        <DataTable columns={txColumns} rows={transactions} rowKey={(r) => r.id} emptyMessage="No transactions." />
+        <DataTable
+          columns={txColumns}
+          rows={transactions}
+          rowKey={(r) => r.id}
+          onRefresh={loadAll}
+          loading={loading}
+          emptyMessage="No transactions."
+        />
       </section>
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>AI usage</h2>
-        <DataTable columns={aiColumns} rows={aiCalls} rowKey={(r) => r.id} emptyMessage="No AI calls." />
+        <DataTable
+          columns={aiColumns}
+          rows={aiCalls}
+          rowKey={(r) => r.id}
+          onRefresh={loadAll}
+          loading={loading}
+          emptyMessage="No AI calls."
+        />
       </section>
 
       <ConfirmDialog

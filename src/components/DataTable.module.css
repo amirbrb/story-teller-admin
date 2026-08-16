@@ -1,15 +1,90 @@
 .wrapper {
-  overflow-x: auto;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.refreshButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.refreshButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  color: var(--color-text);
+}
+
+.refreshButton:disabled {
+  cursor: default;
+}
+
+.refreshIcon {
+  width: 16px;
+  height: 16px;
+}
+
+.spinning {
+  animation: dataTableSpin 700ms linear infinite;
+}
+
+@keyframes dataTableSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.scrollArea {
+  overflow: auto;
+  max-height: 65vh;
+}
+
+/* Fill mode: parent is a flex column bounded to the viewport (common.pageFill), and this table
+   should absorb whatever space is left over rather than capping at a fraction of the viewport —
+   that cap is what let the table crowd out a footer (e.g. pagination) below it. */
+.fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.fill .scrollArea {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 
 table {
+  width: 100%;
+  border-collapse: collapse;
   font-size: var(--text-sm);
 }
 
 th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   text-align: left;
   padding: 0.65rem 1rem;
   color: var(--color-text-muted);
@@ -17,6 +92,7 @@ th {
   font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
 }
