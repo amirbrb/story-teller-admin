@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
 import { useAdminSession } from '@/lib/useAdminSession'
-import { getUser, grantTokens, setPremium, setAdmin, setAiAutocomplete, type AdminUserDetail } from '@/lib/adminApi'
+import {
+  getUser,
+  grantTokens,
+  setPremium,
+  setAdmin,
+  setAiAutocomplete,
+  setChapterAutosave,
+  type AdminUserDetail,
+} from '@/lib/adminApi'
 import { formatDate, formatDateTime, formatNumber, formatUsd } from '@/lib/formatters'
 import DataTable, { type Column } from '@/components/DataTable'
 import Button from '@/components/Button'
@@ -33,6 +41,7 @@ type PendingAction =
   | { type: 'premium'; next: boolean }
   | { type: 'admin'; next: boolean }
   | { type: 'autocomplete'; next: boolean }
+  | { type: 'autosave'; next: boolean }
 
 export default function UserDetail() {
   const { userId } = useParams<{ userId: string }>()
@@ -95,8 +104,10 @@ export default function UserDetail() {
         await setPremium(userId, pending.next)
       } else if (pending.type === 'admin') {
         await setAdmin(userId, pending.next)
-      } else {
+      } else if (pending.type === 'autocomplete') {
         await setAiAutocomplete(userId, pending.next)
+      } else {
+        await setChapterAutosave(userId, pending.next)
       }
       setPending(null)
       loadAll()
@@ -248,6 +259,21 @@ export default function UserDetail() {
               {user.ai_autocomplete_enabled ? 'Turn off autocomplete' : 'Turn on autocomplete'}
             </Button>
           </div>
+
+          <div className={styles.actionRow}>
+            <span>
+              {user.chapter_autosave_enabled
+                ? 'Turn off chapter autosave (in-progress chapters stop syncing to their account)'
+                : 'Turn on chapter autosave (in-progress chapters sync to their account)'}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setPending({ type: 'autosave', next: !user.chapter_autosave_enabled })}
+            >
+              {user.chapter_autosave_enabled ? 'Turn off autosave' : 'Turn on autosave'}
+            </Button>
+          </div>
         </section>
       </div>
 
@@ -292,7 +318,11 @@ export default function UserDetail() {
                   ? pending.next
                     ? 'Turn on AI autocomplete?'
                     : 'Turn off AI autocomplete?'
-                  : ''
+                  : pending?.type === 'autosave'
+                    ? pending.next
+                      ? 'Turn on chapter autosave?'
+                      : 'Turn off chapter autosave?'
+                    : ''
         }
         description={
           pending?.type === 'admin' && pending.next

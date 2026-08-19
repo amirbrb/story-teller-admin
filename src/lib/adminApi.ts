@@ -11,6 +11,7 @@ export type AdminUserRow = {
   is_premium: boolean
   is_admin: boolean
   ai_autocomplete_enabled: boolean
+  chapter_autosave_enabled: boolean
   token_balance: number
   created_at: string
   total_count: number
@@ -23,6 +24,7 @@ export type AdminUserDetail = {
   is_premium: boolean
   is_admin: boolean
   ai_autocomplete_enabled: boolean
+  chapter_autosave_enabled: boolean
   token_balance: number
   created_at: string
   bio: string | null
@@ -76,6 +78,16 @@ export async function setAdmin(profileId: string, isAdmin: boolean): Promise<voi
 // off by default per writer, flipped here rather than through any self-serve setting.
 export async function setAiAutocomplete(profileId: string, enabled: boolean): Promise<void> {
   const { error } = await supabase.rpc('admin_set_ai_autocomplete', {
+    p_target_profile_id: profileId,
+    p_enabled: enabled,
+  })
+  if (error) throw error
+}
+
+// Per-user kill switch for the chapter_drafts autosave (story-teller/supabase/migrations/
+// 0024_chapter_autosave_flag.sql) — on by default, flipped off here for a specific writer.
+export async function setChapterAutosave(profileId: string, enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_chapter_autosave', {
     p_target_profile_id: profileId,
     p_enabled: enabled,
   })
