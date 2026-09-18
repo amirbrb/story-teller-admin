@@ -338,3 +338,89 @@ export async function getSystemErrorEntry(id: string): Promise<SystemErrorDetail
   if (error) throw error
   return (data as unknown as SystemErrorDetailRow) ?? null
 }
+
+// ---------------------------------------------------------------------------------------------
+// In-app feedback (story-teller/supabase/migrations/0042_feedback_attachments.sql,
+// 0043_feedback.sql)
+//
+// Listing reads `feedback` directly under its admin RLS policy, same as ai_call_log/
+// system_error_log above. Writes (status changes) and attachment-URL signing go through the
+// `admin-feedback` Edge Function instead — the table has no client insert/update policy on
+// purpose, and attachment paths only resolve to a URL via the service role. See
+// story-teller/supabase/functions/admin-feedback and CLAUDE.md's "Edge functions and the MCP
+// server" section: this is also what backs the file-feedback skill's Trello sync, so a status
+// this page sets shows up there too and vice versa.
+// ---------------------------------------------------------------------------------------------
+
+export type FeedbackStatus = 'new' | 'filed' | 'dismissed'
+
+export type FeedbackAttachment = { path: string; kind: 'image' | 'video'; name: string }
+export type SignedFeedbackAttachment = { kind: 'image' | 'video'; name: string; url: string | null }
+
+export type FeedbackRow = {
+  id: string
+  number: number
+  created_at: string
+  reporter_name: string | null
+  profile_id: string | null
+  message: string
+  page: string | null
+  language: string | null
+  user_agent: string | null
+  attachments: FeedbackAttachment[]
+  status: FeedbackStatus
+  card_url: string | null
+  filed_at: string | null
+}
+
+export type FeedbackFilters = {
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+}
+
+const FEEDBACK_LIST_COLUMNS =
+  'id, number, created_at, reporter_name, profile_id, message, page, language, user_agent, ' +
+  'attachments, status, card_url, filed_at'
+
+export async function listFeedback(
+  filters: FeedbackFilters,
+  limit: number,
+  offset: number,
+): Promise<{ rows: FeedbackRow[]; total: number }> {
+  let query = supabase
+    .from('feedback')
+    .select(FEEDBACK_LIST_COLUMNS, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (filters.status) query = query.eq('status', filters.status)
+  if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom)
+  if (filters.dateTo) query = query.lte('created_at', endOfDay(filters.dateTo))
+
+  const { data, error, count } = await query
+  if (error) throw error
+  return { rows: (data ?? []) as unknown as FeedbackRow[], total: count ?? 0 }
+}
+
+export async function getFeedbackEntry(id: string): Promise<FeedbackRow | null> {
+  const { data, error } = await supabase.from('feedback').select(FEEDBACK_LIST_COLUMNS).eq('id', id).maybeSingle()
+  if (error) throw error
+  return (data as unknown as FeedbackRow) ?? null
+}
+
+export async function signFeedbackAttachments(feedbackId: string): Promise<SignedFeedbackAttachment[]> {
+  const { data, error } = await supabase.functions.invoke<{ attachments: SignedFeedbackAttachment[] }>(
+    'admin-feedback',
+    { body: { action: 'sign_attachments', feedback_id: feedbackId } },
+  )
+  if (error) throw error
+  return data?.attachments ?? []
+}
+
+export async function setFeedbackStatus(feedbackId: string, status: FeedbackStatus, cardUrl?: string): Promise<void> {
+  const { error } = await supabase.functions.invoke('admin-feedback', {
+    body: { action: 'set_status', feedback_id: feedbackId, status, card_url: cardUrl },
+  })
+  if (error) throw error
+}

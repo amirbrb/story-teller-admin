@@ -14,6 +14,7 @@ const links = [
   { to: '/ai-models', label: 'AI Models', end: false },
   { to: '/ai-call-log', label: 'AI Call Log', end: false },
   { to: '/system-errors', label: 'System Errors', end: false },
+  { to: '/issues', label: 'Issues', end: false },
 ]
 
 export default function Sidebar({ onNavigate }: Props) {

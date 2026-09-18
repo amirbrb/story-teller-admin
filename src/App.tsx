@@ -11,6 +11,8 @@ import AiCallLog from './pages/AiCallLog'
 import AiCallLogDetail from './pages/AiCallLogDetail'
 import SystemErrors from './pages/SystemErrors'
 import SystemErrorDetail from './pages/SystemErrorDetail'
+import Issues from './pages/Issues'
+import IssueDetail from './pages/IssueDetail'
 import NotFound from './pages/NotFound'
 
 export default function App() {
@@ -28,6 +30,8 @@ export default function App() {
           <Route path="/ai-call-log/:id" element={<AiCallLogDetail />} />
           <Route path="/system-errors" element={<SystemErrors />} />
           <Route path="/system-errors/:id" element={<SystemErrorDetail />} />
+          <Route path="/issues" element={<Issues />} />
+          <Route path="/issues/:id" element={<IssueDetail />} />
         </Route>
       </Route>
       <Route path="*" element={<NotFound />} />
