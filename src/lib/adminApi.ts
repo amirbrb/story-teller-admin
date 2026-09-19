@@ -162,6 +162,54 @@ export async function setAiSetting(key: string, value: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Community challenges (story-teller/supabase/migrations/0047_challenges.sql)
+//
+// Reads are a plain select — `challenges` carries a public-read RLS policy (the writer-facing app
+// needs it too), so there's no need for a list RPC the way admin_list_ai_models exists. Writes go
+// through admin_upsert_challenge/admin_delete_challenge, which check is_admin() themselves.
+// ---------------------------------------------------------------------------------------------
+
+export type ChallengeRow = {
+  id: string
+  title: string
+  description: string
+  start_date: string
+  end_date: string
+  created_at: string
+}
+
+export async function listChallenges(): Promise<ChallengeRow[]> {
+  const { data, error } = await supabase
+    .from('challenges')
+    .select('id,title,description,start_date,end_date,created_at')
+    .order('start_date', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function upsertChallenge(challenge: {
+  id: string | null
+  title: string
+  description: string
+  start_date: string
+  end_date: string
+}): Promise<void> {
+  const { error } = await supabase.rpc('admin_upsert_challenge', {
+    p_id: challenge.id,
+    p_title: challenge.title,
+    p_description: challenge.description,
+    p_start_date: challenge.start_date,
+    p_end_date: challenge.end_date,
+  })
+  if (error) throw error
+}
+
+export async function deleteChallenge(id: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_delete_challenge', { p_id: id })
+  if (error) throw error
+}
+
+// ---------------------------------------------------------------------------------------------
 // Logs (story-teller/supabase/migrations/0011_ai_call_log.sql, 0018_error_logging.sql)
 //
 // Plain selects rather than admin_* RPCs, unlike everything above. Both tables already carry an
