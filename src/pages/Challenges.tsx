@@ -12,12 +12,23 @@ type ChallengeForm = {
   description: string
   start_date: string
   end_date: string
+  // '' means "everyone" (null on the wire) — an <select> can't hold a null value directly.
+  target_locale: string
 }
 
-const EMPTY_FORM: ChallengeForm = { id: null, title: '', description: '', start_date: '', end_date: '' }
+const EMPTY_FORM: ChallengeForm = { id: null, title: '', description: '', start_date: '', end_date: '', target_locale: '' }
+
+const TARGET_LOCALE_LABELS: Record<string, string> = { en: 'English', he: 'Hebrew' }
 
 function toForm(row: ChallengeRow): ChallengeForm {
-  return { id: row.id, title: row.title, description: row.description, start_date: row.start_date, end_date: row.end_date }
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    start_date: row.start_date,
+    end_date: row.end_date,
+    target_locale: row.target_locale ?? '',
+  }
 }
 
 // Operator screen for the community challenges writers can join from their own /challenges page
@@ -88,6 +99,11 @@ export default function Challenges() {
     { key: 'title', header: 'Title', render: (r) => r.title },
     { key: 'start_date', header: 'Start', render: (r) => r.start_date },
     { key: 'end_date', header: 'End', render: (r) => r.end_date },
+    {
+      key: 'target_locale',
+      header: 'Target',
+      render: (r) => r.target_locale ? TARGET_LOCALE_LABELS[r.target_locale] ?? r.target_locale : <span className={common.muted}>Everyone</span>,
+    },
     {
       key: 'actions',
       header: 'Actions',
@@ -169,6 +185,14 @@ export default function Challenges() {
                 />
               </label>
             </div>
+            <label>
+              Target language
+              <select value={form.target_locale} onChange={(e) => setForm({ ...form, target_locale: e.target.value })}>
+                <option value="">Everyone</option>
+                <option value="en">English</option>
+                <option value="he">Hebrew</option>
+              </select>
+            </label>
             <div className={styles.formActions}>
               <Button type="button" variant="ghost" onClick={() => setForm(null)} disabled={busy}>
                 Cancel
@@ -184,7 +208,11 @@ export default function Challenges() {
       <ConfirmDialog
         open={pendingSave !== null}
         title={editingExisting ? 'Update this challenge?' : 'Add this challenge?'}
-        description={pendingSave ? `${pendingSave.title} — ${pendingSave.start_date} to ${pendingSave.end_date}.` : undefined}
+        description={
+          pendingSave
+            ? `${pendingSave.title} — ${pendingSave.start_date} to ${pendingSave.end_date}, ${pendingSave.target_locale ? `${TARGET_LOCALE_LABELS[pendingSave.target_locale]} only` : 'everyone'}.`
+            : undefined
+        }
         confirmLabel="Save"
         busy={busy}
         onCancel={() => setPendingSave(null)}
@@ -199,6 +227,7 @@ export default function Challenges() {
                 description: target.description.trim(),
                 start_date: target.start_date,
                 end_date: target.end_date,
+                target_locale: target.target_locale || null,
               }),
             `Saved ${target.title.trim()}.`,
           ).then(() => setForm(null))
