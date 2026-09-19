@@ -13,6 +13,8 @@ import SystemErrors from './pages/SystemErrors'
 import SystemErrorDetail from './pages/SystemErrorDetail'
 import Issues from './pages/Issues'
 import IssueDetail from './pages/IssueDetail'
+import ContentReviews from './pages/ContentReviews'
+import ContentReviewDetail from './pages/ContentReviewDetail'
 import NotFound from './pages/NotFound'
 
 export default function App() {
@@ -32,6 +34,8 @@ export default function App() {
           <Route path="/system-errors/:id" element={<SystemErrorDetail />} />
           <Route path="/issues" element={<Issues />} />
           <Route path="/issues/:id" element={<IssueDetail />} />
+          <Route path="/content-reviews" element={<ContentReviews />} />
+          <Route path="/content-reviews/:id" element={<ContentReviewDetail />} />
         </Route>
       </Route>
       <Route path="*" element={<NotFound />} />

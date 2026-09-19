@@ -193,6 +193,8 @@ export const SYSTEM_ERROR_FUNCTION_NAMES = [
   'rebuild-story-bible',
   'submit-chapter',
   'moderate-chapter',
+  'request-content-review',
+  'admin-content-review',
 ] as const
 
 export type AiCallLogRow = {
@@ -421,6 +423,111 @@ export async function signFeedbackAttachments(feedbackId: string): Promise<Signe
 export async function setFeedbackStatus(feedbackId: string, status: FeedbackStatus, cardUrl?: string): Promise<void> {
   const { error } = await supabase.functions.invoke('admin-feedback', {
     body: { action: 'set_status', feedback_id: feedbackId, status, card_url: cardUrl },
+  })
+  if (error) throw error
+}
+
+// ---------------------------------------------------------------------------------------------
+// Content review requests (story-teller/supabase/migrations/0046_content_review_requests.sql)
+//
+// A writer's explicit save/publish can be hard-rejected by automatic moderation
+// (moderation.categories['sexual/minors'] in _shared/chapterSave.ts) with no client-side bypass —
+// request-content-review queues the exact rejected content here instead, for a human to decide.
+// Listing/reading goes straight to the table under its admin RLS policy, same as feedback; the
+// decision itself goes through admin-content-review, since approving re-saves the chapter via the
+// service-role client (skipping moderation, forcing a 'mature' rating) and rejecting requires
+// recording why — the writer sees that note verbatim in their notification, so it's not optional.
+//
+// No embedded `profiles(...)`/`stories(...)` selects here: this table has two FKs to `profiles`
+// (profile_id, reviewed_by) and two to `chapters` (chapter_id, resulting_chapter_id), which
+// PostgREST can't auto-disambiguate the way the single-FK embeds elsewhere in this file do — pages
+// resolve story/writer names with a second lookup instead, same as story-teller's NotificationHub.
+// ---------------------------------------------------------------------------------------------
+
+export type ContentReviewStatus = 'pending' | 'approved' | 'rejected'
+
+export type ContentReviewRow = {
+  id: string
+  story_id: string
+  chapter_id: string | null
+  profile_id: string | null
+  content: string
+  title: string | null
+  kind: 'chapter' | 'prologue' | 'epilogue'
+  language: string
+  ai_assistance: 'none' | 'assisted' | 'generated' | null
+  publish: boolean
+  moderation_categories: string[]
+  status: ContentReviewStatus
+  review_note: string | null
+  resulting_chapter_id: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_at: string
+}
+
+export type ContentReviewFilters = {
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+}
+
+const CONTENT_REVIEW_LIST_COLUMNS =
+  'id, story_id, chapter_id, profile_id, content, title, kind, language, ai_assistance, publish, ' +
+  'moderation_categories, status, review_note, resulting_chapter_id, reviewed_by, reviewed_at, created_at'
+
+export async function listContentReviews(
+  filters: ContentReviewFilters,
+  limit: number,
+  offset: number,
+): Promise<{ rows: ContentReviewRow[]; total: number }> {
+  let query = supabase
+    .from('content_review_requests')
+    .select(CONTENT_REVIEW_LIST_COLUMNS, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (filters.status) query = query.eq('status', filters.status)
+  if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom)
+  if (filters.dateTo) query = query.lte('created_at', endOfDay(filters.dateTo))
+
+  const { data, error, count } = await query
+  if (error) throw error
+  return { rows: (data ?? []) as unknown as ContentReviewRow[], total: count ?? 0 }
+}
+
+export async function getContentReviewEntry(id: string): Promise<ContentReviewRow | null> {
+  const { data, error } = await supabase.from('content_review_requests').select(CONTENT_REVIEW_LIST_COLUMNS).eq('id', id).maybeSingle()
+  if (error) throw error
+  return (data as unknown as ContentReviewRow) ?? null
+}
+
+// Small helper the list/detail pages both need: given a set of story/profile ids gathered from
+// content_review_requests rows, resolve them to display titles/names in one round trip each.
+export async function lookupStoryTitles(storyIds: string[]): Promise<Record<string, string>> {
+  if (storyIds.length === 0) return {}
+  const { data, error } = await supabase.from('stories').select('id,title').in('id', storyIds)
+  if (error) throw error
+  return Object.fromEntries((data ?? []).map((s) => [s.id, s.title]))
+}
+
+export async function lookupProfileNames(profileIds: string[]): Promise<Record<string, string>> {
+  if (profileIds.length === 0) return {}
+  const { data, error } = await supabase.from('profiles').select('id,display_name').in('id', profileIds)
+  if (error) throw error
+  return Object.fromEntries((data ?? []).map((p) => [p.id, p.display_name]))
+}
+
+export async function approveContentReview(requestId: string, reviewNote?: string): Promise<void> {
+  const { error } = await supabase.functions.invoke('admin-content-review', {
+    body: { action: 'approve', request_id: requestId, review_note: reviewNote },
+  })
+  if (error) throw error
+}
+
+export async function rejectContentReview(requestId: string, reviewNote: string): Promise<void> {
+  const { error } = await supabase.functions.invoke('admin-content-review', {
+    body: { action: 'reject', request_id: requestId, review_note: reviewNote },
   })
   if (error) throw error
 }
