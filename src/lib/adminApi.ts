@@ -162,11 +162,18 @@ export async function setAiSetting(key: string, value: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Community challenges (story-teller/supabase/migrations/0047_challenges.sql)
+// Community challenges (story-teller/supabase/migrations/0047_challenges.sql,
+// 0048_challenge_target_locale.sql)
 //
 // Reads are a plain select — `challenges` carries a public-read RLS policy (the writer-facing app
 // needs it too), so there's no need for a list RPC the way admin_list_ai_models exists. Writes go
 // through admin_upsert_challenge/admin_delete_challenge, which check is_admin() themselves.
+//
+// target_locale is optional (null = shown to everyone) and, when set, scopes a challenge to
+// writers currently reading Nibb in that language — 'en' or 'he', matching the main app's
+// i18n language codes. It's a language target, not a country/geolocation one (0048's comment
+// explains why): Nibb already segments by UI language, and a raw geographic check would hide a
+// Hebrew challenge from a diaspora Hebrew writer and vice versa.
 // ---------------------------------------------------------------------------------------------
 
 export type ChallengeRow = {
@@ -175,13 +182,14 @@ export type ChallengeRow = {
   description: string
   start_date: string
   end_date: string
+  target_locale: string | null
   created_at: string
 }
 
 export async function listChallenges(): Promise<ChallengeRow[]> {
   const { data, error } = await supabase
     .from('challenges')
-    .select('id,title,description,start_date,end_date,created_at')
+    .select('id,title,description,start_date,end_date,target_locale,created_at')
     .order('start_date', { ascending: false })
   if (error) throw error
   return data ?? []
@@ -193,6 +201,7 @@ export async function upsertChallenge(challenge: {
   description: string
   start_date: string
   end_date: string
+  target_locale: string | null
 }): Promise<void> {
   const { error } = await supabase.rpc('admin_upsert_challenge', {
     p_id: challenge.id,
@@ -200,6 +209,7 @@ export async function upsertChallenge(challenge: {
     p_description: challenge.description,
     p_start_date: challenge.start_date,
     p_end_date: challenge.end_date,
+    p_target_locale: challenge.target_locale,
   })
   if (error) throw error
 }
