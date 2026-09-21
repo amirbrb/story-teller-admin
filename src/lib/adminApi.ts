@@ -770,8 +770,13 @@ export async function listCreditTransactions(profileId: string, limit = 50): Pro
 
 // Money is stored as micro-dollars; operators think in dollars. These two are the only place that
 // conversion happens, so a rounding mistake can't spread.
+//
+// Sub-cent amounts keep more precision instead of rounding to "0.00": a single inline continuation
+// really can cost $0.0009, and showing that as nothing makes a metered call look free.
 export function microsToDollars(micros: number): string {
-  return (micros / 1_000_000).toFixed(2)
+  const dollars = micros / 1_000_000
+  if (dollars !== 0 && Math.abs(dollars) < 0.01) return dollars.toFixed(4)
+  return dollars.toFixed(2)
 }
 
 export function dollarsToMicros(dollars: string): number {

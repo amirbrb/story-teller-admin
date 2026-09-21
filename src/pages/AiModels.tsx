@@ -177,8 +177,8 @@ export default function AiModels() {
           <div>
             <h2>Writer-facing drafting models</h2>
             <p className={common.muted}>
-              What a writer can choose between, and what each costs them in app tokens. A cost of 0
-              charges nothing — no token ledger entry is written at all.
+              What a writer can choose between when drafting. Models carry no price: a call is billed
+              on what it actually cost at OpenRouter (see Billing).
             </p>
           </div>
           <Button onClick={startAdd} disabled={busy}>
@@ -292,64 +292,6 @@ export default function AiModels() {
             </div>
           ))}
 
-          <div className={styles.settingRow}>
-            <div className={styles.settingMeta}>
-              <strong>Style analysis cost</strong>
-              <span className={common.muted}>App tokens charged for the writer-triggered style analysis. 0 makes it free.</span>
-            </div>
-            <input
-              type="number"
-              min={0}
-              value={settings.style_analysis_cost ?? ''}
-              onChange={(e) => setSettings({ ...settings, style_analysis_cost: e.target.value })}
-              aria-label="Style analysis cost"
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={busy || !(settings.style_analysis_cost ?? '').trim()}
-              onClick={() =>
-                setPendingSetting({
-                  key: 'style_analysis_cost',
-                  label: 'Style analysis cost',
-                  value: settings.style_analysis_cost ?? '',
-                })
-              }
-            >
-              Save
-            </Button>
-          </div>
-
-          <div className={styles.settingRow}>
-            <div className={styles.settingMeta}>
-              <strong>Autocomplete cost</strong>
-              <span className={common.muted}>
-                App tokens charged per suggestion a writer accepts or requests from the editor's "continue writing"
-                button. Keep this low — it's a couple of sentences, not a chapter.
-              </span>
-            </div>
-            <input
-              type="number"
-              min={0}
-              value={settings.autocomplete_cost ?? ''}
-              onChange={(e) => setSettings({ ...settings, autocomplete_cost: e.target.value })}
-              aria-label="Autocomplete cost"
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={busy || !(settings.autocomplete_cost ?? '').trim()}
-              onClick={() =>
-                setPendingSetting({
-                  key: 'autocomplete_cost',
-                  label: 'Autocomplete cost',
-                  value: settings.autocomplete_cost ?? '',
-                })
-              }
-            >
-              Save
-            </Button>
-          </div>
         </div>
       </section>
 
