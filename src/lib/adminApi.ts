@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient'
 
-// Typed wrappers around the admin_* RPCs in story-teller/supabase/migrations/0012_admin.sql.
+// Typed wrappers around the admin_* RPCs in story-teller/supabase/migrations/0012_admin.sql
+// (and 0049_premium_credit.sql for everything money- and feature-flag-related).
 // Every admin mutation goes through these instead of a direct table write — the RPCs check
 // is_admin() themselves, so this is a convenience layer, not the security boundary.
 
@@ -9,10 +10,10 @@ export type AdminUserRow = {
   email: string
   display_name: string
   is_premium: boolean
+  premium_source: 'none' | 'admin' | 'paddle'
   is_admin: boolean
-  ai_autocomplete_enabled: boolean
   chapter_autosave_enabled: boolean
-  token_balance: number
+  credit_micros: number
   created_at: string
   total_count: number
 }
@@ -22,10 +23,13 @@ export type AdminUserDetail = {
   email: string
   display_name: string
   is_premium: boolean
+  premium_source: 'none' | 'admin' | 'paddle'
+  premium_granted_at: string | null
   is_admin: boolean
-  ai_autocomplete_enabled: boolean
   chapter_autosave_enabled: boolean
-  token_balance: number
+  credit_micros: number
+  paddle_customer_id: string | null
+  has_pending_premium_request: boolean
   created_at: string
   bio: string | null
   avatar_url: string | null
@@ -48,10 +52,12 @@ export async function getUser(profileId: string): Promise<AdminUserDetail | null
   return data?.[0] ?? null
 }
 
-export async function grantTokens(profileId: string, amount: number, note: string): Promise<number> {
-  const { data, error } = await supabase.rpc('admin_grant_tokens', {
+// Amounts are micro-dollars (1e-6 USD) everywhere money is handled — see 0049_premium_credit.sql
+// for why integers rather than floats. The UI converts at the edges; nothing in between rounds.
+export async function grantCredit(profileId: string, amountMicros: number, note: string): Promise<number> {
+  const { data, error } = await supabase.rpc('admin_grant_credit', {
     p_target_profile_id: profileId,
-    p_amount: amount,
+    p_amount_micros: amountMicros,
     p_note: note || null,
   })
   if (error) throw error
@@ -74,16 +80,6 @@ export async function setAdmin(profileId: string, isAdmin: boolean): Promise<voi
   if (error) throw error
 }
 
-// Explicit-trigger AI autocomplete (story-teller/supabase/migrations/0020_ai_autocomplete.sql) —
-// off by default per writer, flipped here rather than through any self-serve setting.
-export async function setAiAutocomplete(profileId: string, enabled: boolean): Promise<void> {
-  const { error } = await supabase.rpc('admin_set_ai_autocomplete', {
-    p_target_profile_id: profileId,
-    p_enabled: enabled,
-  })
-  if (error) throw error
-}
-
 // Per-user kill switch for the chapter_drafts autosave (story-teller/supabase/migrations/
 // 0024_chapter_autosave_flag.sql) — on by default, flipped off here for a specific writer.
 export async function setChapterAutosave(profileId: string, enabled: boolean): Promise<void> {
@@ -97,16 +93,16 @@ export async function setChapterAutosave(profileId: string, enabled: boolean): P
 // ---------------------------------------------------------------------------------------------
 // AI model configuration (story-teller/supabase/migrations/0014_admin_ai_models.sql)
 //
-// `ai_chapter_models` is the list of models a writer can pick between when drafting, and the price
-// of each. `ai_settings` holds which model runs the app's internal, machine-facing calls (the story
-// bible, style analysis) — those are never writer-visible.
+// `ai_chapter_models` is the list of models a writer can pick between when drafting. Models carry
+// no price any more (0049_premium_credit.sql): a call is billed on what it actually cost at
+// OpenRouter. `ai_settings` holds which model runs the app's internal, machine-facing calls (the
+// story bible, style analysis) — those are never writer-visible.
 // ---------------------------------------------------------------------------------------------
 
 export type AiModelRow = {
   id: string
   label: string
   description: string | null
-  token_cost: number
   sort_order: number
   is_enabled: boolean
   updated_at: string
@@ -130,7 +126,6 @@ export async function upsertAiModel(model: {
   id: string
   label: string
   description: string | null
-  token_cost: number
   sort_order: number
   is_enabled: boolean
 }): Promise<void> {
@@ -138,7 +133,6 @@ export async function upsertAiModel(model: {
     p_id: model.id,
     p_label: model.label,
     p_description: model.description,
-    p_token_cost: model.token_cost,
     p_sort_order: model.sort_order,
     p_is_enabled: model.is_enabled,
   })
@@ -270,7 +264,7 @@ export type AiCallLogRow = {
   total_tokens: number | null
   cost_usd: number | null
   generation_id: string | null
-  token_cost: number
+  charged_micros: number | null
   latency_ms: number
   attempt: number
   profiles: { display_name: string | null } | null
@@ -293,7 +287,7 @@ export type AiCallLogFilters = {
 
 const AI_LOG_LIST_COLUMNS =
   'id, created_at, function_name, model, profile_id, story_id, chapter_id, status, error_message, ' +
-  'prompt_tokens, completion_tokens, total_tokens, cost_usd, generation_id, token_cost, latency_ms, attempt, ' +
+  'prompt_tokens, completion_tokens, total_tokens, cost_usd, generation_id, charged_micros, latency_ms, attempt, ' +
   'profiles(display_name)'
 
 // A date input yields 'YYYY-MM-DD', which Postgres reads as midnight — so an unadjusted `to` filter
@@ -588,4 +582,198 @@ export async function rejectContentReview(requestId: string, reviewNote: string)
     body: { action: 'reject', request_id: requestId, review_note: reviewNote },
   })
   if (error) throw error
+}
+
+// ---------------------------------------------------------------------------------------------
+// Feature flags and billing (story-teller/supabase/migrations/0049_premium_credit.sql)
+//
+// Flags are per-user and both seeded ones default off, so this is where the premium rollout is
+// actually driven: `ai_credit_metering` decides whether a writer's AI usage is billed against
+// credit, and `paddle_checkout` decides whether they get real checkout or the "coming soon" path.
+// Turning a flag back off is the rollback.
+// ---------------------------------------------------------------------------------------------
+
+export type FeatureFlagRow = {
+  key: string
+  label: string
+  description: string | null
+  default_enabled: boolean
+  override_count: number
+  enabled_count: number
+}
+
+export type FlagOverrideRow = {
+  profile_id: string
+  email: string
+  display_name: string
+  enabled: boolean
+  updated_at: string
+  total_count: number
+}
+
+export type PremiumRequestRow = {
+  id: string
+  profile_id: string
+  email: string
+  display_name: string
+  is_premium: boolean
+  credit_micros: number
+  checkout_enabled: boolean
+  created_at: string
+  notified_at: string | null
+  resolved_at: string | null
+}
+
+export type CreditPackRow = {
+  paddle_price_id: string
+  kind: 'premium' | 'topup'
+  label: string
+  description: string | null
+  credit_micros: number
+  grants_premium: boolean
+  display_amount: string
+  sort_order: number
+  is_enabled: boolean
+}
+
+export type BillingSettingRow = {
+  key: string
+  value: string
+  updated_at: string
+}
+
+export async function listFeatureFlags(): Promise<FeatureFlagRow[]> {
+  const { data, error } = await supabase.rpc('admin_list_feature_flags')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function upsertFeatureFlag(flag: {
+  key: string
+  label: string
+  description: string | null
+  default_enabled: boolean
+}): Promise<void> {
+  const { error } = await supabase.rpc('admin_upsert_feature_flag', {
+    p_key: flag.key,
+    p_label: flag.label,
+    p_description: flag.description,
+    p_default_enabled: flag.default_enabled,
+  })
+  if (error) throw error
+}
+
+export async function deleteFeatureFlag(key: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_delete_feature_flag', { p_key: key })
+  if (error) throw error
+}
+
+export async function listFlagOverrides(key: string, limit: number, offset: number): Promise<FlagOverrideRow[]> {
+  const { data, error } = await supabase.rpc('admin_list_flag_overrides', {
+    p_key: key,
+    p_limit: limit,
+    p_offset: offset,
+  })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function setProfileFlag(profileId: string, key: string, enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_profile_flag', {
+    p_target_profile_id: profileId,
+    p_key: key,
+    p_enabled: enabled,
+  })
+  if (error) throw error
+}
+
+// Not the same as setting it false: clearing hands the writer back to the flag's default, which is
+// what an operator means by "undo what I did to this person".
+export async function clearProfileFlag(profileId: string, key: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_clear_profile_flag', {
+    p_target_profile_id: profileId,
+    p_key: key,
+  })
+  if (error) throw error
+}
+
+export async function listPremiumRequests(includeResolved = false): Promise<PremiumRequestRow[]> {
+  const { data, error } = await supabase.rpc('admin_list_premium_requests', {
+    p_include_resolved: includeResolved,
+  })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function resolvePremiumRequest(id: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_resolve_premium_request', { p_id: id })
+  if (error) throw error
+}
+
+export async function listCreditPacks(): Promise<CreditPackRow[]> {
+  const { data, error } = await supabase.rpc('admin_list_credit_packs')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function upsertCreditPack(pack: CreditPackRow): Promise<void> {
+  const { error } = await supabase.rpc('admin_upsert_credit_pack', {
+    p_paddle_price_id: pack.paddle_price_id,
+    p_kind: pack.kind,
+    p_label: pack.label,
+    p_description: pack.description,
+    p_credit_micros: pack.credit_micros,
+    p_grants_premium: pack.grants_premium,
+    p_display_amount: pack.display_amount,
+    p_sort_order: pack.sort_order,
+    p_is_enabled: pack.is_enabled,
+  })
+  if (error) throw error
+}
+
+export async function deleteCreditPack(paddlePriceId: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_delete_credit_pack', { p_paddle_price_id: paddlePriceId })
+  if (error) throw error
+}
+
+export async function listBillingSettings(): Promise<BillingSettingRow[]> {
+  const { data, error } = await supabase.rpc('admin_list_billing_settings')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function setBillingSetting(key: string, value: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_billing_setting', { p_key: key, p_value: value })
+  if (error) throw error
+}
+
+// A writer's credit ledger, read straight from the table through its admin-read policy.
+export type CreditTransactionRow = {
+  id: string
+  amount_micros: number
+  reason: string
+  balance_after_micros: number
+  metadata: Record<string, unknown> | null
+  created_at: string
+}
+
+export async function listCreditTransactions(profileId: string, limit = 50): Promise<CreditTransactionRow[]> {
+  const { data, error } = await supabase
+    .from('credit_transactions')
+    .select('id, amount_micros, reason, balance_after_micros, metadata, created_at')
+    .eq('profile_id', profileId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
+// Money is stored as micro-dollars; operators think in dollars. These two are the only place that
+// conversion happens, so a rounding mistake can't spread.
+export function microsToDollars(micros: number): string {
+  return (micros / 1_000_000).toFixed(2)
+}
+
+export function dollarsToMicros(dollars: string): number {
+  return Math.round(Number(dollars) * 1_000_000)
 }

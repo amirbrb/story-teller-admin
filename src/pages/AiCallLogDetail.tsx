@@ -120,7 +120,11 @@ export default function AiCallLogDetail() {
           </div>
           <div>
             <dt>Charged to writer</dt>
-            <dd>{formatNumber(entry.token_cost)} tokens</dd>
+            <dd>
+              {entry.charged_micros === null
+                ? 'Not metered'
+                : `$${(entry.charged_micros / 1_000_000).toFixed(4)}`}
+            </dd>
           </div>
           <div>
             <dt>Story</dt>

@@ -7,6 +7,8 @@ import Users from './pages/Users'
 import UserDetail from './pages/UserDetail'
 import AiUsage from './pages/AiUsage'
 import AiModels from './pages/AiModels'
+import FeatureFlags from './pages/FeatureFlags'
+import Billing from './pages/Billing'
 import Challenges from './pages/Challenges'
 import AiCallLog from './pages/AiCallLog'
 import AiCallLogDetail from './pages/AiCallLogDetail'
@@ -29,6 +31,8 @@ export default function App() {
           <Route path="/users/:userId" element={<UserDetail />} />
           <Route path="/ai-usage" element={<AiUsage />} />
           <Route path="/ai-models" element={<AiModels />} />
+          <Route path="/billing" element={<Billing />} />
+          <Route path="/feature-flags" element={<FeatureFlags />} />
           <Route path="/challenges" element={<Challenges />} />
           <Route path="/ai-call-log" element={<AiCallLog />} />
           <Route path="/ai-call-log/:id" element={<AiCallLogDetail />} />
