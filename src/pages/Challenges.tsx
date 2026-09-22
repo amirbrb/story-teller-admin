@@ -1,5 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { deleteChallenge, listChallenges, upsertChallenge, type ChallengeRow } from '@/lib/adminApi'
+import {
+  deleteChallenge,
+  listChallenges,
+  upsertChallenge,
+  type ChallengeGoalMetric,
+  type ChallengeRow,
+} from '@/lib/adminApi'
 import Button from '@/components/Button'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import DataTable, { type Column } from '@/components/DataTable'
@@ -14,11 +20,26 @@ type ChallengeForm = {
   end_date: string
   // '' means "everyone" (null on the wire) — an <select> can't hold a null value directly.
   target_locale: string
+  // '' means "no goal": the writer's page then shows what they wrote during the window with
+  // nothing to measure it against. Metric and target go to the wire together or not at all.
+  goal_metric: string
+  goal_target: string
 }
 
-const EMPTY_FORM: ChallengeForm = { id: null, title: '', description: '', start_date: '', end_date: '', target_locale: '' }
+const EMPTY_FORM: ChallengeForm = {
+  id: null,
+  title: '',
+  description: '',
+  start_date: '',
+  end_date: '',
+  target_locale: '',
+  goal_metric: '',
+  goal_target: '',
+}
 
 const TARGET_LOCALE_LABELS: Record<string, string> = { en: 'English', he: 'Hebrew' }
+
+const GOAL_METRIC_LABELS: Record<string, string> = { chapters: 'chapters', words: 'words' }
 
 function toForm(row: ChallengeRow): ChallengeForm {
   return {
@@ -28,13 +49,21 @@ function toForm(row: ChallengeRow): ChallengeForm {
     start_date: row.start_date,
     end_date: row.end_date,
     target_locale: row.target_locale ?? '',
+    goal_metric: row.goal_metric ?? '',
+    goal_target: row.goal_target === null ? '' : String(row.goal_target),
   }
 }
 
+function goalSummary(form: ChallengeForm): string {
+  if (!form.goal_metric) return 'no goal'
+  return `${form.goal_target} ${GOAL_METRIC_LABELS[form.goal_metric] ?? form.goal_metric}`
+}
+
 // Operator screen for the community challenges writers can join from their own /challenges page
-// in the main app. Participation-only — no target metric, no progress tracking — so this is plain
-// CRUD on a small table, same shape as AiModels' model list: a table, an add/edit form staged into
-// pendingSave, and a ConfirmDialog before every write.
+// in the main app. Plain CRUD on a small table, same shape as AiModels' model list: a table, an
+// add/edit form staged into pendingSave, and a ConfirmDialog before every write. A challenge can
+// carry an optional goal (N chapters or N words inside the date range), which is what the writer's
+// page renders a progress meter against; leave it off and they just see their count for the window.
 export default function Challenges() {
   const [challenges, setChallenges] = useState<ChallengeRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -105,6 +134,16 @@ export default function Challenges() {
       render: (r) => r.target_locale ? TARGET_LOCALE_LABELS[r.target_locale] ?? r.target_locale : <span className={common.muted}>Everyone</span>,
     },
     {
+      key: 'goal',
+      header: 'Goal',
+      render: (r) =>
+        r.goal_metric && r.goal_target !== null ? (
+          `${r.goal_target} ${GOAL_METRIC_LABELS[r.goal_metric] ?? r.goal_metric}`
+        ) : (
+          <span className={common.muted}>No goal</span>
+        ),
+    },
+    {
       key: 'actions',
       header: 'Actions',
       align: 'right',
@@ -125,8 +164,10 @@ export default function Challenges() {
     <div className={common.page}>
       <h1>Challenges</h1>
       <p className={common.muted}>
-        Community writing challenges. Writers see and join these from their own Challenges page — participation
-        only, no word-count or progress tracking. A challenge stops being offered once its end date passes.
+        Community writing challenges. Writers see and join these from their own Challenges page, where a
+        challenge they've joined shows their progress for the window. Give it a goal to show them a meter
+        against it; leave the goal off and they just see what they've written. A challenge stops being
+        offered once its end date passes.
       </p>
 
       {error && <p className={common.error}>{error}</p>}
@@ -193,6 +234,36 @@ export default function Challenges() {
                 <option value="he">Hebrew</option>
               </select>
             </label>
+            <div className={styles.formGrid}>
+              <label>
+                Goal
+                <select
+                  value={form.goal_metric}
+                  onChange={(e) =>
+                    // Clearing the metric clears the number with it — the RPC rejects one without
+                    // the other, and a stale number left in a hidden field would be confusing.
+                    setForm({ ...form, goal_metric: e.target.value, goal_target: e.target.value ? form.goal_target : '' })
+                  }
+                >
+                  <option value="">No goal</option>
+                  <option value="chapters">Chapters written</option>
+                  <option value="words">Words written</option>
+                </select>
+              </label>
+              <label>
+                Target
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={form.goal_target}
+                  onChange={(e) => setForm({ ...form, goal_target: e.target.value })}
+                  disabled={!form.goal_metric}
+                  required={form.goal_metric !== ''}
+                  placeholder={form.goal_metric === 'words' ? 'e.g. 50000' : 'e.g. 8'}
+                />
+              </label>
+            </div>
             <div className={styles.formActions}>
               <Button type="button" variant="ghost" onClick={() => setForm(null)} disabled={busy}>
                 Cancel
@@ -210,7 +281,7 @@ export default function Challenges() {
         title={editingExisting ? 'Update this challenge?' : 'Add this challenge?'}
         description={
           pendingSave
-            ? `${pendingSave.title} — ${pendingSave.start_date} to ${pendingSave.end_date}, ${pendingSave.target_locale ? `${TARGET_LOCALE_LABELS[pendingSave.target_locale]} only` : 'everyone'}.`
+            ? `${pendingSave.title} — ${pendingSave.start_date} to ${pendingSave.end_date}, ${pendingSave.target_locale ? `${TARGET_LOCALE_LABELS[pendingSave.target_locale]} only` : 'everyone'}, ${goalSummary(pendingSave)}.`
             : undefined
         }
         confirmLabel="Save"
@@ -228,6 +299,8 @@ export default function Challenges() {
                 start_date: target.start_date,
                 end_date: target.end_date,
                 target_locale: target.target_locale || null,
+                goal_metric: (target.goal_metric || null) as ChallengeGoalMetric | null,
+                goal_target: target.goal_metric ? Number(target.goal_target) : null,
               }),
             `Saved ${target.title.trim()}.`,
           ).then(() => setForm(null))
