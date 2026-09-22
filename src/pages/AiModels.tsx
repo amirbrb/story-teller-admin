@@ -46,19 +46,17 @@ type ModelForm = {
   id: string
   label: string
   description: string
-  token_cost: string
   sort_order: string
   is_enabled: boolean
 }
 
-const EMPTY_FORM: ModelForm = { id: '', label: '', description: '', token_cost: '0', sort_order: '0', is_enabled: true }
+const EMPTY_FORM: ModelForm = { id: '', label: '', description: '', sort_order: '0', is_enabled: true }
 
 function toForm(row: AiModelRow): ModelForm {
   return {
     id: row.id,
     label: row.label,
     description: row.description ?? '',
-    token_cost: String(row.token_cost),
     sort_order: String(row.sort_order),
     is_enabled: row.is_enabled,
   }
@@ -138,12 +136,6 @@ export default function AiModels() {
   const columns: Column<AiModelRow>[] = [
     { key: 'id', header: 'OpenRouter id', render: (r) => <code className={styles.code}>{r.id}</code> },
     { key: 'label', header: 'Label', render: (r) => r.label },
-    {
-      key: 'token_cost',
-      header: 'Token cost',
-      align: 'right',
-      render: (r) => (r.token_cost === 0 ? <span className={styles.freeBadge}>Free</span> : r.token_cost),
-    },
     { key: 'sort_order', header: 'Order', align: 'right', render: (r) => r.sort_order },
     {
       key: 'is_enabled',
@@ -185,8 +177,8 @@ export default function AiModels() {
           <div>
             <h2>Writer-facing drafting models</h2>
             <p className={common.muted}>
-              What a writer can choose between, and what each costs them in app tokens. A cost of 0
-              charges nothing — no token ledger entry is written at all.
+              What a writer can choose between when drafting. Models carry no price: a call is billed
+              on what it actually cost at OpenRouter (see Billing).
             </p>
           </div>
           <Button onClick={startAdd} disabled={busy}>
@@ -223,16 +215,6 @@ export default function AiModels() {
                   value={form.label}
                   onChange={(e) => setForm({ ...form, label: e.target.value })}
                   placeholder="Shown in the writer's picker"
-                  required
-                />
-              </label>
-              <label>
-                Token cost
-                <input
-                  type="number"
-                  min={0}
-                  value={form.token_cost}
-                  onChange={(e) => setForm({ ...form, token_cost: e.target.value })}
                   required
                 />
               </label>
@@ -310,64 +292,6 @@ export default function AiModels() {
             </div>
           ))}
 
-          <div className={styles.settingRow}>
-            <div className={styles.settingMeta}>
-              <strong>Style analysis cost</strong>
-              <span className={common.muted}>App tokens charged for the writer-triggered style analysis. 0 makes it free.</span>
-            </div>
-            <input
-              type="number"
-              min={0}
-              value={settings.style_analysis_cost ?? ''}
-              onChange={(e) => setSettings({ ...settings, style_analysis_cost: e.target.value })}
-              aria-label="Style analysis cost"
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={busy || !(settings.style_analysis_cost ?? '').trim()}
-              onClick={() =>
-                setPendingSetting({
-                  key: 'style_analysis_cost',
-                  label: 'Style analysis cost',
-                  value: settings.style_analysis_cost ?? '',
-                })
-              }
-            >
-              Save
-            </Button>
-          </div>
-
-          <div className={styles.settingRow}>
-            <div className={styles.settingMeta}>
-              <strong>Autocomplete cost</strong>
-              <span className={common.muted}>
-                App tokens charged per suggestion a writer accepts or requests from the editor's "continue writing"
-                button. Keep this low — it's a couple of sentences, not a chapter.
-              </span>
-            </div>
-            <input
-              type="number"
-              min={0}
-              value={settings.autocomplete_cost ?? ''}
-              onChange={(e) => setSettings({ ...settings, autocomplete_cost: e.target.value })}
-              aria-label="Autocomplete cost"
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={busy || !(settings.autocomplete_cost ?? '').trim()}
-              onClick={() =>
-                setPendingSetting({
-                  key: 'autocomplete_cost',
-                  label: 'Autocomplete cost',
-                  value: settings.autocomplete_cost ?? '',
-                })
-              }
-            >
-              Save
-            </Button>
-          </div>
         </div>
       </section>
 
@@ -376,7 +300,7 @@ export default function AiModels() {
         title={editingExisting ? 'Update this model?' : 'Add this model?'}
         description={
           pendingSave
-            ? `${pendingSave.id} — ${pendingSave.token_cost} tokens, ${pendingSave.is_enabled ? 'offered to writers' : 'hidden from writers'}.`
+            ? `${pendingSave.id} — ${pendingSave.is_enabled ? 'offered to writers' : 'hidden from writers'}.`
             : undefined
         }
         confirmLabel="Save"
@@ -391,7 +315,6 @@ export default function AiModels() {
                 id: target.id.trim(),
                 label: target.label.trim(),
                 description: target.description.trim() || null,
-                token_cost: Number(target.token_cost),
                 sort_order: Number(target.sort_order),
                 is_enabled: target.is_enabled,
               }),

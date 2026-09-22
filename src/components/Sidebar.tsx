@@ -12,6 +12,8 @@ const links = [
   { to: '/users', label: 'Users', end: false },
   { to: '/ai-usage', label: 'AI Usage', end: false },
   { to: '/ai-models', label: 'AI Models', end: false },
+  { to: '/billing', label: 'Billing', end: false },
+  { to: '/feature-flags', label: 'Feature Flags', end: false },
   { to: '/challenges', label: 'Challenges', end: false },
   { to: '/ai-call-log', label: 'AI Call Log', end: false },
   { to: '/system-errors', label: 'System Errors', end: false },

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listUsers, type AdminUserRow } from '@/lib/adminApi'
+import { listUsers, microsToDollars, type AdminUserRow } from '@/lib/adminApi'
 import { formatDate } from '@/lib/formatters'
 import DataTable, { type Column } from '@/components/DataTable'
 import Button from '@/components/Button'
@@ -67,7 +67,7 @@ export default function Users() {
       header: 'Premium',
       render: (r) => (r.is_premium ? <span className={styles.badgeSuccess}>Premium</span> : '—'),
     },
-    { key: 'token_balance', header: 'Tokens', render: (r) => r.token_balance.toLocaleString(), align: 'right' },
+    { key: 'credit_micros', header: 'Credit', render: (r) => `$${microsToDollars(r.credit_micros)}`, align: 'right' },
     { key: 'created_at', header: 'Joined', render: (r) => formatDate(r.created_at) },
     {
       key: 'is_admin',

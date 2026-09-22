@@ -3,13 +3,20 @@ import { useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
 import { useAdminSession } from '@/lib/useAdminSession'
 import {
+  clearProfileFlag,
+  dollarsToMicros,
   getUser,
-  grantTokens,
+  grantCredit,
+  listCreditTransactions,
+  listFeatureFlags,
+  microsToDollars,
   setPremium,
   setAdmin,
-  setAiAutocomplete,
   setChapterAutosave,
+  setProfileFlag,
   type AdminUserDetail,
+  type CreditTransactionRow,
+  type FeatureFlagRow,
 } from '@/lib/adminApi'
 import { formatDate, formatDateTime, formatNumber, formatUsd } from '@/lib/formatters'
 import DataTable, { type Column } from '@/components/DataTable'
@@ -17,14 +24,6 @@ import Button from '@/components/Button'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import common from '@/styles/common.module.css'
 import styles from './UserDetail.module.css'
-
-type TokenTransaction = {
-  id: string
-  amount: number
-  reason: string
-  balance_after: number
-  created_at: string
-}
 
 type AiCallLogRow = {
   id: string
@@ -37,17 +36,20 @@ type AiCallLogRow = {
 }
 
 type PendingAction =
-  | { type: 'grant'; amount: number; note: string }
+  | { type: 'grant'; dollars: string; note: string }
   | { type: 'premium'; next: boolean }
   | { type: 'admin'; next: boolean }
-  | { type: 'autocomplete'; next: boolean }
   | { type: 'autosave'; next: boolean }
+  | { type: 'flag'; key: string; label: string; next: boolean }
+  | { type: 'clearFlag'; key: string; label: string }
 
 export default function UserDetail() {
   const { userId } = useParams<{ userId: string }>()
   const { session } = useAdminSession()
   const [user, setUser] = useState<AdminUserDetail | null>(null)
-  const [transactions, setTransactions] = useState<TokenTransaction[]>([])
+  const [transactions, setTransactions] = useState<CreditTransactionRow[]>([])
+  const [flags, setFlags] = useState<FeatureFlagRow[]>([])
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({})
   const [aiCalls, setAiCalls] = useState<AiCallLogRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -63,25 +65,26 @@ export default function UserDetail() {
 
     Promise.all([
       getUser(userId),
-      supabase
-        .from('token_transactions')
-        .select('id, amount, reason, balance_after, created_at')
-        .eq('profile_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(50),
+      listCreditTransactions(userId),
       supabase
         .from('ai_call_log')
         .select('id, created_at, function_name, model, status, total_tokens, cost_usd')
         .eq('profile_id', userId)
         .order('created_at', { ascending: false })
         .limit(50),
+      listFeatureFlags(),
+      supabase.from('profile_feature_flags').select('flag_key, enabled').eq('profile_id', userId),
     ])
-      .then(([userResult, txResult, aiResult]) => {
+      .then(([userResult, txRows, aiResult, flagRows, overrideResult]) => {
         setUser(userResult)
-        if (txResult.error) throw txResult.error
-        setTransactions(txResult.data ?? [])
+        setTransactions(txRows)
         if (aiResult.error) throw aiResult.error
         setAiCalls(aiResult.data ?? [])
+        setFlags(flagRows)
+        if (overrideResult.error) throw overrideResult.error
+        setOverrides(
+          Object.fromEntries((overrideResult.data ?? []).map((row) => [row.flag_key as string, row.enabled as boolean])),
+        )
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Failed to load user.')
@@ -97,15 +100,17 @@ export default function UserDetail() {
     setError(null)
     try {
       if (pending.type === 'grant') {
-        await grantTokens(userId, pending.amount, pending.note)
+        await grantCredit(userId, dollarsToMicros(pending.dollars), pending.note)
         setGrantAmount('')
         setGrantNote('')
       } else if (pending.type === 'premium') {
         await setPremium(userId, pending.next)
       } else if (pending.type === 'admin') {
         await setAdmin(userId, pending.next)
-      } else if (pending.type === 'autocomplete') {
-        await setAiAutocomplete(userId, pending.next)
+      } else if (pending.type === 'flag') {
+        await setProfileFlag(userId, pending.key, pending.next)
+      } else if (pending.type === 'clearFlag') {
+        await clearProfileFlag(userId, pending.key)
       } else {
         await setChapterAutosave(userId, pending.next)
       }
@@ -118,11 +123,21 @@ export default function UserDetail() {
     }
   }
 
-  const txColumns: Column<TokenTransaction>[] = [
+  const txColumns: Column<CreditTransactionRow>[] = [
     { key: 'created_at', header: 'When', render: (r) => formatDateTime(r.created_at) },
     { key: 'reason', header: 'Reason', render: (r) => r.reason },
-    { key: 'amount', header: 'Amount', render: (r) => (r.amount > 0 ? `+${r.amount}` : r.amount), align: 'right' },
-    { key: 'balance_after', header: 'Balance after', render: (r) => formatNumber(r.balance_after), align: 'right' },
+    {
+      key: 'amount',
+      header: 'Amount',
+      align: 'right',
+      render: (r) => `${r.amount_micros > 0 ? '+' : '-'}$${microsToDollars(Math.abs(r.amount_micros))}`,
+    },
+    {
+      key: 'balance_after',
+      header: 'Balance after',
+      align: 'right',
+      render: (r) => `$${microsToDollars(r.balance_after_micros)}`,
+    },
   ]
 
   const aiColumns: Column<AiCallLogRow>[] = [
@@ -161,7 +176,12 @@ export default function UserDetail() {
           <p className={common.muted}>{user.email}</p>
         </div>
         <div className={styles.badges}>
-          {user.is_premium && <span className={styles.badgeSuccess}>Premium</span>}
+          {user.is_premium && (
+            <span className={styles.badgeSuccess}>
+              {user.premium_source === 'admin' ? 'Premium (comped)' : 'Premium'}
+            </span>
+          )}
+          {user.has_pending_premium_request && <span className={styles.badgeAdmin}>Wants premium</span>}
           {user.is_admin && <span className={styles.badgeAdmin}>Admin</span>}
         </div>
       </div>
@@ -176,8 +196,22 @@ export default function UserDetail() {
         <section className={common.card}>
           <h2 className={styles.sectionTitle}>Profile</h2>
           <dl className={styles.fields}>
-            <dt>Token balance</dt>
-            <dd>{formatNumber(user.token_balance)}</dd>
+            <dt>AI credit</dt>
+            <dd>${microsToDollars(user.credit_micros)}</dd>
+            <dt>Premium</dt>
+            <dd>
+              {user.is_premium
+                ? user.premium_source === 'admin'
+                  ? 'Granted by an admin — AI is unmetered'
+                  : 'Bought through Paddle'
+                : 'No'}
+            </dd>
+            {user.premium_granted_at && (
+              <>
+                <dt>Premium since</dt>
+                <dd>{formatDate(user.premium_granted_at)}</dd>
+              </>
+            )}
             <dt>Joined</dt>
             <dd>{formatDate(user.created_at)}</dd>
             <dt>Adult content allowed</dt>
@@ -192,12 +226,13 @@ export default function UserDetail() {
 
           <div className={styles.actionRow}>
             <label className={styles.grantLabel}>
-              Grant tokens
+              Grant AI credit (USD)
               <div className={styles.grantInputs}>
                 <input
                   type="number"
-                  min={1}
-                  placeholder="Amount"
+                  min={0.01}
+                  step={0.01}
+                  placeholder="10.00"
                   value={grantAmount}
                   onChange={(e) => setGrantAmount(e.target.value)}
                   className={styles.amountInput}
@@ -214,14 +249,18 @@ export default function UserDetail() {
               variant="secondary"
               size="sm"
               disabled={!grantAmount || Number(grantAmount) <= 0}
-              onClick={() => setPending({ type: 'grant', amount: Number(grantAmount), note: grantNote })}
+              onClick={() => setPending({ type: 'grant', dollars: grantAmount, note: grantNote })}
             >
               Grant
             </Button>
           </div>
 
           <div className={styles.actionRow}>
-            <span>{user.is_premium ? 'Remove premium access' : 'Grant premium access'}</span>
+            <span>
+              {user.is_premium
+                ? 'Remove premium access'
+                : 'Grant premium access — full AI, not billed against credit'}
+            </span>
             <Button
               variant="secondary"
               size="sm"
@@ -247,21 +286,6 @@ export default function UserDetail() {
 
           <div className={styles.actionRow}>
             <span>
-              {user.ai_autocomplete_enabled
-                ? 'Turn off AI autocomplete (the "continue writing" editor suggestion)'
-                : 'Turn on AI autocomplete (the "continue writing" editor suggestion)'}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setPending({ type: 'autocomplete', next: !user.ai_autocomplete_enabled })}
-            >
-              {user.ai_autocomplete_enabled ? 'Turn off autocomplete' : 'Turn on autocomplete'}
-            </Button>
-          </div>
-
-          <div className={styles.actionRow}>
-            <span>
               {user.chapter_autosave_enabled
                 ? 'Turn off chapter autosave (in-progress chapters stop syncing to their account)'
                 : 'Turn on chapter autosave (in-progress chapters sync to their account)'}
@@ -277,8 +301,49 @@ export default function UserDetail() {
         </section>
       </div>
 
+      <section className={common.card}>
+        <h2 className={styles.sectionTitle}>Feature flags</h2>
+        <p className={common.muted}>
+          Per-writer overrides. Clearing one hands them back to the flag's default. An admin-granted
+          premium is never metered whatever ai_credit_metering says.
+        </p>
+        {flags.map((flag) => {
+          const override = overrides[flag.key]
+          const effective = override ?? flag.default_enabled
+          return (
+            <div key={flag.key} className={styles.actionRow}>
+              <span>
+                <strong>{flag.label}</strong>
+                <br />
+                {effective ? 'On' : 'Off'}
+                {override === undefined ? ' (following the default)' : ' (set for this writer)'}
+                {flag.description ? ` — ${flag.description}` : ''}
+              </span>
+              <span className={styles.flagActions}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPending({ type: 'flag', key: flag.key, label: flag.label, next: !effective })}
+                >
+                  {effective ? 'Turn off' : 'Turn on'}
+                </Button>
+                {override !== undefined && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPending({ type: 'clearFlag', key: flag.key, label: flag.label })}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </span>
+            </div>
+          )
+        })}
+      </section>
+
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Token transactions</h2>
+        <h2 className={styles.sectionTitle}>Credit ledger</h2>
         <DataTable
           columns={txColumns}
           rows={transactions}
@@ -305,7 +370,7 @@ export default function UserDetail() {
         open={pending !== null}
         title={
           pending?.type === 'grant'
-            ? `Grant ${pending.amount} tokens?`
+            ? `Grant $${pending.dollars} of AI credit?`
             : pending?.type === 'premium'
               ? pending.next
                 ? 'Grant premium access?'
@@ -314,20 +379,30 @@ export default function UserDetail() {
                 ? pending.next
                   ? 'Grant admin access?'
                   : 'Revoke admin access?'
-                : pending?.type === 'autocomplete'
-                  ? pending.next
-                    ? 'Turn on AI autocomplete?'
-                    : 'Turn off AI autocomplete?'
-                  : pending?.type === 'autosave'
-                    ? pending.next
-                      ? 'Turn on chapter autosave?'
-                      : 'Turn off chapter autosave?'
-                    : ''
+                : pending?.type === 'flag'
+                  ? `${pending.next ? 'Turn on' : 'Turn off'} ${pending.label} for this writer?`
+                  : pending?.type === 'clearFlag'
+                    ? `Clear ${pending.label} for this writer?`
+                    : pending?.type === 'autosave'
+                      ? pending.next
+                        ? 'Turn on chapter autosave?'
+                        : 'Turn off chapter autosave?'
+                      : ''
         }
         description={
           pending?.type === 'admin' && pending.next
             ? 'This user will be able to view every user, their AI usage, and grant/revoke admin access.'
-            : undefined
+            : pending?.type === 'premium' && pending.next
+              ? 'Every AI feature opens up for them immediately, and their usage is not billed against credit — this is the comped path, not a purchase.'
+              : pending?.type === 'premium' && !pending.next
+                ? 'They lose access to every AI feature. Any credit they hold stays on the account.'
+                : pending?.type === 'flag' && pending.key === 'ai_credit_metering' && pending.next
+                  ? "From their next AI call, usage is charged against their credit and stops when it runs out — unless their premium was granted by an admin, which is never metered."
+                  : pending?.type === 'flag' && pending.key === 'paddle_checkout' && pending.next
+                    ? 'The premium page will offer them real Paddle checkout instead of the "coming soon" message.'
+                    : pending?.type === 'clearFlag'
+                      ? "They go back to following the flag's default."
+                      : undefined
         }
         danger={pending?.type === 'admin'}
         busy={busy}
