@@ -168,7 +168,16 @@ export async function setAiSetting(key: string, value: string): Promise<void> {
 // i18n language codes. It's a language target, not a country/geolocation one (0048's comment
 // explains why): Nibb already segments by UI language, and a raw geographic check would hide a
 // Hebrew challenge from a diaspora Hebrew writer and vice versa.
+//
+// goal_metric + goal_target (0050_challenge_progress.sql) are set together or not at all. With a
+// goal, a writer's Challenges page shows a meter against it; without one it shows the plain count
+// of what they wrote during the window. The metric is per challenge because both readings of a
+// writing challenge are real — a word target and a "ship N chapters" target want different numbers
+// in front of the writer. A chapter counts toward either when it was created inside the window and
+// is published now.
 // ---------------------------------------------------------------------------------------------
+
+export type ChallengeGoalMetric = 'chapters' | 'words'
 
 export type ChallengeRow = {
   id: string
@@ -177,13 +186,15 @@ export type ChallengeRow = {
   start_date: string
   end_date: string
   target_locale: string | null
+  goal_metric: ChallengeGoalMetric | null
+  goal_target: number | null
   created_at: string
 }
 
 export async function listChallenges(): Promise<ChallengeRow[]> {
   const { data, error } = await supabase
     .from('challenges')
-    .select('id,title,description,start_date,end_date,target_locale,created_at')
+    .select('id,title,description,start_date,end_date,target_locale,goal_metric,goal_target,created_at')
     .order('start_date', { ascending: false })
   if (error) throw error
   return data ?? []
@@ -196,6 +207,8 @@ export async function upsertChallenge(challenge: {
   start_date: string
   end_date: string
   target_locale: string | null
+  goal_metric: ChallengeGoalMetric | null
+  goal_target: number | null
 }): Promise<void> {
   const { error } = await supabase.rpc('admin_upsert_challenge', {
     p_id: challenge.id,
@@ -204,6 +217,8 @@ export async function upsertChallenge(challenge: {
     p_start_date: challenge.start_date,
     p_end_date: challenge.end_date,
     p_target_locale: challenge.target_locale,
+    p_goal_metric: challenge.goal_metric,
+    p_goal_target: challenge.goal_target,
   })
   if (error) throw error
 }
