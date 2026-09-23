@@ -21,14 +21,14 @@ import styles from './FeatureFlags.module.css'
 //
 // This is where the premium rollout is actually driven. Both seeded flags default off, so the
 // billing work ships inert and becomes real one writer at a time:
-//   ai_credit_metering — bill this writer's AI usage against their credit, stopping at zero.
-//                        Off means their AI is unmetered, exactly as before billing existed.
-//   paddle_checkout    — give this writer real Paddle checkout. Off means they see "coming soon"
-//                        and their request lands in the premium queue instead.
+//   ai_token_metering — charge this writer's AI usage against their token balance, stopping at
+//                       zero. Off means their AI is unmetered, exactly as before billing existed.
+//   paddle_checkout   — give this writer real Paddle checkout. Off means they see "coming soon"
+//                       and their request lands in the premium queue instead.
 // Turning a flag back off is the rollback, and it takes effect on the writer's next AI call.
 //
 // Note an operator comp outranks both: a writer whose premium was granted from the user page is
-// never metered, whatever ai_credit_metering says. That's deliberate — it's how the team uses the
+// never metered, whatever ai_token_metering says. That's deliberate — it's how the team uses the
 // app's own AI without a balance getting in the way.
 
 type FlagForm = {
@@ -416,8 +416,8 @@ export default function FeatureFlags() {
             ? 'Every per-writer override for this flag goes with it, and anything checking it will fall back to off.'
             : pending?.type === 'saveFlag' && pending.form.default_enabled
               ? 'This flag will be on for every writer who has no override set.'
-              : pending?.type === 'setOverride' && pending.key === 'ai_credit_metering' && pending.enabled
-                ? "From their next AI call, this writer's usage is charged against their credit and stops when it runs out."
+              : pending?.type === 'setOverride' && pending.key === 'ai_token_metering' && pending.enabled
+                ? "From their next AI call, this writer's usage costs tokens and stops when the balance runs out."
                 : pending?.type === 'setOverride' && pending.key === 'paddle_checkout' && pending.enabled
                   ? 'This writer will get real Paddle checkout instead of the "coming soon" message.'
                   : pending?.type === 'clearOverride'
