@@ -1,7 +1,8 @@
 import { supabase } from './supabaseClient'
 
 // Typed wrappers around the admin_* RPCs in story-teller/supabase/migrations/0012_admin.sql
-// (and 0049_premium_credit.sql for everything money- and feature-flag-related).
+// (and 0049_premium_credit.sql, repriced in tokens by 0051_premium_tokens.sql, for everything
+// billing- and feature-flag-related).
 // Every admin mutation goes through these instead of a direct table write — the RPCs check
 // is_admin() themselves, so this is a convenience layer, not the security boundary.
 
@@ -13,7 +14,7 @@ export type AdminUserRow = {
   premium_source: 'none' | 'admin' | 'paddle'
   is_admin: boolean
   chapter_autosave_enabled: boolean
-  credit_micros: number
+  token_balance: number
   created_at: string
   total_count: number
 }
@@ -27,7 +28,7 @@ export type AdminUserDetail = {
   premium_granted_at: string | null
   is_admin: boolean
   chapter_autosave_enabled: boolean
-  credit_micros: number
+  token_balance: number
   paddle_customer_id: string | null
   has_pending_premium_request: boolean
   created_at: string
@@ -52,12 +53,10 @@ export async function getUser(profileId: string): Promise<AdminUserDetail | null
   return data?.[0] ?? null
 }
 
-// Amounts are micro-dollars (1e-6 USD) everywhere money is handled — see 0049_premium_credit.sql
-// for why integers rather than floats. The UI converts at the edges; nothing in between rounds.
-export async function grantCredit(profileId: string, amountMicros: number, note: string): Promise<number> {
-  const { data, error } = await supabase.rpc('admin_grant_credit', {
+export async function grantTokens(profileId: string, amount: number, note: string): Promise<number> {
+  const { data, error } = await supabase.rpc('admin_grant_tokens', {
     p_target_profile_id: profileId,
-    p_amount_micros: amountMicros,
+    p_amount: amount,
     p_note: note || null,
   })
   if (error) throw error
@@ -279,7 +278,7 @@ export type AiCallLogRow = {
   total_tokens: number | null
   cost_usd: number | null
   generation_id: string | null
-  charged_micros: number | null
+  token_cost: number | null
   latency_ms: number
   attempt: number
   profiles: { display_name: string | null } | null
@@ -302,7 +301,7 @@ export type AiCallLogFilters = {
 
 const AI_LOG_LIST_COLUMNS =
   'id, created_at, function_name, model, profile_id, story_id, chapter_id, status, error_message, ' +
-  'prompt_tokens, completion_tokens, total_tokens, cost_usd, generation_id, charged_micros, latency_ms, attempt, ' +
+  'prompt_tokens, completion_tokens, total_tokens, cost_usd, generation_id, token_cost, latency_ms, attempt, ' +
   'profiles(display_name)'
 
 // A date input yields 'YYYY-MM-DD', which Postgres reads as midnight — so an unadjusted `to` filter
@@ -600,12 +599,12 @@ export async function rejectContentReview(requestId: string, reviewNote: string)
 }
 
 // ---------------------------------------------------------------------------------------------
-// Feature flags and billing (story-teller/supabase/migrations/0049_premium_credit.sql)
+// Feature flags and billing (story-teller/supabase/migrations/0051_premium_tokens.sql)
 //
 // Flags are per-user and both seeded ones default off, so this is where the premium rollout is
-// actually driven: `ai_credit_metering` decides whether a writer's AI usage is billed against
-// credit, and `paddle_checkout` decides whether they get real checkout or the "coming soon" path.
-// Turning a flag back off is the rollback.
+// actually driven: `ai_token_metering` decides whether a writer's AI usage costs them tokens, and
+// `paddle_checkout` decides whether they get real checkout or the "coming soon" path. Turning a
+// flag back off is the rollback.
 // ---------------------------------------------------------------------------------------------
 
 export type FeatureFlagRow = {
@@ -632,19 +631,19 @@ export type PremiumRequestRow = {
   email: string
   display_name: string
   is_premium: boolean
-  credit_micros: number
+  token_balance: number
   checkout_enabled: boolean
   created_at: string
   notified_at: string | null
   resolved_at: string | null
 }
 
-export type CreditPackRow = {
+export type TokenPackRow = {
   paddle_price_id: string
   kind: 'premium' | 'topup'
   label: string
   description: string | null
-  credit_micros: number
+  tokens_granted: number
   grants_premium: boolean
   display_amount: string
   sort_order: number
@@ -725,19 +724,19 @@ export async function resolvePremiumRequest(id: string): Promise<void> {
   if (error) throw error
 }
 
-export async function listCreditPacks(): Promise<CreditPackRow[]> {
-  const { data, error } = await supabase.rpc('admin_list_credit_packs')
+export async function listTokenPacks(): Promise<TokenPackRow[]> {
+  const { data, error } = await supabase.rpc('admin_list_token_packs')
   if (error) throw error
   return data ?? []
 }
 
-export async function upsertCreditPack(pack: CreditPackRow): Promise<void> {
-  const { error } = await supabase.rpc('admin_upsert_credit_pack', {
+export async function upsertTokenPack(pack: TokenPackRow): Promise<void> {
+  const { error } = await supabase.rpc('admin_upsert_token_pack', {
     p_paddle_price_id: pack.paddle_price_id,
     p_kind: pack.kind,
     p_label: pack.label,
     p_description: pack.description,
-    p_credit_micros: pack.credit_micros,
+    p_tokens_granted: pack.tokens_granted,
     p_grants_premium: pack.grants_premium,
     p_display_amount: pack.display_amount,
     p_sort_order: pack.sort_order,
@@ -746,8 +745,8 @@ export async function upsertCreditPack(pack: CreditPackRow): Promise<void> {
   if (error) throw error
 }
 
-export async function deleteCreditPack(paddlePriceId: string): Promise<void> {
-  const { error } = await supabase.rpc('admin_delete_credit_pack', { p_paddle_price_id: paddlePriceId })
+export async function deleteTokenPack(paddlePriceId: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_delete_token_pack', { p_paddle_price_id: paddlePriceId })
   if (error) throw error
 }
 
@@ -762,20 +761,20 @@ export async function setBillingSetting(key: string, value: string): Promise<voi
   if (error) throw error
 }
 
-// A writer's credit ledger, read straight from the table through its admin-read policy.
-export type CreditTransactionRow = {
+// A writer's token ledger, read straight from the table through its admin-read policy.
+export type TokenTransactionRow = {
   id: string
-  amount_micros: number
+  amount: number
   reason: string
-  balance_after_micros: number
+  balance_after: number
   metadata: Record<string, unknown> | null
   created_at: string
 }
 
-export async function listCreditTransactions(profileId: string, limit = 50): Promise<CreditTransactionRow[]> {
+export async function listTokenTransactions(profileId: string, limit = 50): Promise<TokenTransactionRow[]> {
   const { data, error } = await supabase
-    .from('credit_transactions')
-    .select('id, amount_micros, reason, balance_after_micros, metadata, created_at')
+    .from('token_transactions')
+    .select('id, amount, reason, balance_after, metadata, created_at')
     .eq('profile_id', profileId)
     .order('created_at', { ascending: false })
     .limit(limit)
@@ -783,17 +782,6 @@ export async function listCreditTransactions(profileId: string, limit = 50): Pro
   return data ?? []
 }
 
-// Money is stored as micro-dollars; operators think in dollars. These two are the only place that
-// conversion happens, so a rounding mistake can't spread.
-//
-// Sub-cent amounts keep more precision instead of rounding to "0.00": a single inline continuation
-// really can cost $0.0009, and showing that as nothing makes a metered call look free.
-export function microsToDollars(micros: number): string {
-  const dollars = micros / 1_000_000
-  if (dollars !== 0 && Math.abs(dollars) < 0.01) return dollars.toFixed(4)
-  return dollars.toFixed(2)
-}
-
-export function dollarsToMicros(dollars: string): number {
-  return Math.round(Number(dollars) * 1_000_000)
+export function formatTokens(tokens: number): string {
+  return Math.round(tokens).toLocaleString()
 }

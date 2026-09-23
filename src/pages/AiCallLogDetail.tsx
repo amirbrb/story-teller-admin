@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getAiCallLogEntry, type AiCallLogDetailRow } from '@/lib/adminApi'
+import { formatTokens, getAiCallLogEntry, type AiCallLogDetailRow } from '@/lib/adminApi'
 import { formatDateTime, formatNumber, formatUsd } from '@/lib/formatters'
 import Badge from '@/components/Badge'
 import Button from '@/components/Button'
@@ -119,12 +119,8 @@ export default function AiCallLogDetail() {
             <dd>{formatUsd(entry.cost_usd)}</dd>
           </div>
           <div>
-            <dt>Charged to writer</dt>
-            <dd>
-              {entry.charged_micros === null
-                ? 'Not metered'
-                : `$${(entry.charged_micros / 1_000_000).toFixed(4)}`}
-            </dd>
+            <dt>Platform tokens charged</dt>
+            <dd>{entry.token_cost === null ? 'Not metered' : formatTokens(entry.token_cost)}</dd>
           </div>
           <div>
             <dt>Story</dt>

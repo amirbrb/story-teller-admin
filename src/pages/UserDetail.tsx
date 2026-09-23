@@ -4,19 +4,18 @@ import { supabase } from '@/lib/supabaseClient'
 import { useAdminSession } from '@/lib/useAdminSession'
 import {
   clearProfileFlag,
-  dollarsToMicros,
+  formatTokens,
   getUser,
-  grantCredit,
-  listCreditTransactions,
+  grantTokens,
   listFeatureFlags,
-  microsToDollars,
+  listTokenTransactions,
   setPremium,
   setAdmin,
   setChapterAutosave,
   setProfileFlag,
   type AdminUserDetail,
-  type CreditTransactionRow,
   type FeatureFlagRow,
+  type TokenTransactionRow,
 } from '@/lib/adminApi'
 import { formatDate, formatDateTime, formatNumber, formatUsd } from '@/lib/formatters'
 import DataTable, { type Column } from '@/components/DataTable'
@@ -33,10 +32,11 @@ type AiCallLogRow = {
   status: string
   total_tokens: number | null
   cost_usd: number | null
+  token_cost: number | null
 }
 
 type PendingAction =
-  | { type: 'grant'; dollars: string; note: string }
+  | { type: 'grant'; amount: string; note: string }
   | { type: 'premium'; next: boolean }
   | { type: 'admin'; next: boolean }
   | { type: 'autosave'; next: boolean }
@@ -47,7 +47,7 @@ export default function UserDetail() {
   const { userId } = useParams<{ userId: string }>()
   const { session } = useAdminSession()
   const [user, setUser] = useState<AdminUserDetail | null>(null)
-  const [transactions, setTransactions] = useState<CreditTransactionRow[]>([])
+  const [transactions, setTransactions] = useState<TokenTransactionRow[]>([])
   const [flags, setFlags] = useState<FeatureFlagRow[]>([])
   const [overrides, setOverrides] = useState<Record<string, boolean>>({})
   const [aiCalls, setAiCalls] = useState<AiCallLogRow[]>([])
@@ -65,10 +65,10 @@ export default function UserDetail() {
 
     Promise.all([
       getUser(userId),
-      listCreditTransactions(userId),
+      listTokenTransactions(userId),
       supabase
         .from('ai_call_log')
-        .select('id, created_at, function_name, model, status, total_tokens, cost_usd')
+        .select('id, created_at, function_name, model, status, total_tokens, cost_usd, token_cost')
         .eq('profile_id', userId)
         .order('created_at', { ascending: false })
         .limit(50),
@@ -100,7 +100,7 @@ export default function UserDetail() {
     setError(null)
     try {
       if (pending.type === 'grant') {
-        await grantCredit(userId, dollarsToMicros(pending.dollars), pending.note)
+        await grantTokens(userId, Math.round(Number(pending.amount)), pending.note)
         setGrantAmount('')
         setGrantNote('')
       } else if (pending.type === 'premium') {
@@ -123,20 +123,20 @@ export default function UserDetail() {
     }
   }
 
-  const txColumns: Column<CreditTransactionRow>[] = [
+  const txColumns: Column<TokenTransactionRow>[] = [
     { key: 'created_at', header: 'When', render: (r) => formatDateTime(r.created_at) },
     { key: 'reason', header: 'Reason', render: (r) => r.reason },
     {
       key: 'amount',
       header: 'Amount',
       align: 'right',
-      render: (r) => `${r.amount_micros > 0 ? '+' : '-'}$${microsToDollars(Math.abs(r.amount_micros))}`,
+      render: (r) => `${r.amount > 0 ? '+' : '−'}${formatTokens(Math.abs(r.amount))}`,
     },
     {
       key: 'balance_after',
       header: 'Balance after',
       align: 'right',
-      render: (r) => `$${microsToDollars(r.balance_after_micros)}`,
+      render: (r) => formatTokens(r.balance_after),
     },
   ]
 
@@ -145,8 +145,14 @@ export default function UserDetail() {
     { key: 'function_name', header: 'Function', render: (r) => r.function_name },
     { key: 'model', header: 'Model', render: (r) => r.model },
     { key: 'status', header: 'Status', render: (r) => r.status },
-    { key: 'total_tokens', header: 'Tokens', render: (r) => formatNumber(r.total_tokens), align: 'right' },
+    { key: 'total_tokens', header: 'Model tokens', render: (r) => formatNumber(r.total_tokens), align: 'right' },
     { key: 'cost_usd', header: 'Cost', render: (r) => formatUsd(r.cost_usd), align: 'right' },
+    {
+      key: 'token_cost',
+      header: 'Charged',
+      align: 'right',
+      render: (r) => (r.token_cost === null ? '—' : formatTokens(r.token_cost)),
+    },
   ]
 
   if (loading && !user) {
@@ -196,8 +202,8 @@ export default function UserDetail() {
         <section className={common.card}>
           <h2 className={styles.sectionTitle}>Profile</h2>
           <dl className={styles.fields}>
-            <dt>AI credit</dt>
-            <dd>${microsToDollars(user.credit_micros)}</dd>
+            <dt>Token balance</dt>
+            <dd>{formatTokens(user.token_balance)}</dd>
             <dt>Premium</dt>
             <dd>
               {user.is_premium
@@ -226,13 +232,13 @@ export default function UserDetail() {
 
           <div className={styles.actionRow}>
             <label className={styles.grantLabel}>
-              Grant AI credit (USD)
+              Grant tokens
               <div className={styles.grantInputs}>
                 <input
                   type="number"
-                  min={0.01}
-                  step={0.01}
-                  placeholder="10.00"
+                  min={1}
+                  step={1}
+                  placeholder="1000"
                   value={grantAmount}
                   onChange={(e) => setGrantAmount(e.target.value)}
                   className={styles.amountInput}
@@ -249,7 +255,7 @@ export default function UserDetail() {
               variant="secondary"
               size="sm"
               disabled={!grantAmount || Number(grantAmount) <= 0}
-              onClick={() => setPending({ type: 'grant', dollars: grantAmount, note: grantNote })}
+              onClick={() => setPending({ type: 'grant', amount: grantAmount, note: grantNote })}
             >
               Grant
             </Button>
@@ -259,7 +265,7 @@ export default function UserDetail() {
             <span>
               {user.is_premium
                 ? 'Remove premium access'
-                : 'Grant premium access — full AI, not billed against credit'}
+                : 'Grant premium access — full AI, never charged tokens'}
             </span>
             <Button
               variant="secondary"
@@ -305,7 +311,7 @@ export default function UserDetail() {
         <h2 className={styles.sectionTitle}>Feature flags</h2>
         <p className={common.muted}>
           Per-writer overrides. Clearing one hands them back to the flag's default. An admin-granted
-          premium is never metered whatever ai_credit_metering says.
+          premium is never metered whatever ai_token_metering says.
         </p>
         {flags.map((flag) => {
           const override = overrides[flag.key]
@@ -343,7 +349,7 @@ export default function UserDetail() {
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Credit ledger</h2>
+        <h2 className={styles.sectionTitle}>Token ledger</h2>
         <DataTable
           columns={txColumns}
           rows={transactions}
@@ -370,7 +376,7 @@ export default function UserDetail() {
         open={pending !== null}
         title={
           pending?.type === 'grant'
-            ? `Grant $${pending.dollars} of AI credit?`
+            ? `Grant ${formatTokens(Number(pending.amount) || 0)} tokens?`
             : pending?.type === 'premium'
               ? pending.next
                 ? 'Grant premium access?'
@@ -393,11 +399,11 @@ export default function UserDetail() {
           pending?.type === 'admin' && pending.next
             ? 'This user will be able to view every user, their AI usage, and grant/revoke admin access.'
             : pending?.type === 'premium' && pending.next
-              ? 'Every AI feature opens up for them immediately, and their usage is not billed against credit — this is the comped path, not a purchase.'
+              ? 'Every AI feature opens up for them immediately, and their usage costs them no tokens — this is the comped path, not a purchase.'
               : pending?.type === 'premium' && !pending.next
-                ? 'They lose access to every AI feature. Any credit they hold stays on the account.'
-                : pending?.type === 'flag' && pending.key === 'ai_credit_metering' && pending.next
-                  ? "From their next AI call, usage is charged against their credit and stops when it runs out — unless their premium was granted by an admin, which is never metered."
+                ? 'They lose access to every AI feature. Any tokens they hold stay on the account.'
+                : pending?.type === 'flag' && pending.key === 'ai_token_metering' && pending.next
+                  ? 'From their next AI call, usage costs tokens and stops when the balance runs out — unless their premium was granted by an admin, which is never metered.'
                   : pending?.type === 'flag' && pending.key === 'paddle_checkout' && pending.next
                     ? 'The premium page will offer them real Paddle checkout instead of the "coming soon" message.'
                     : pending?.type === 'clearFlag'
