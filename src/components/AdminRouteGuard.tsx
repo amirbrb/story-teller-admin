@@ -27,7 +27,7 @@ export default function AdminRouteGuard() {
         <div className={`${common.card} ${styles.notAuthorized}`}>
           <h1>Not authorized</h1>
           <p className={common.muted}>
-            This account doesn't have admin access to Storyteller Admin. You've been signed out.
+            This account doesn't have admin access to Nibb Admin. You've been signed out.
           </p>
           <Button to="/login">Back to login</Button>
         </div>

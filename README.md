@@ -1,7 +1,7 @@
-# Storyteller Admin
+# Nibb Admin
 
-Internal admin dashboard for [Storyteller](../story-teller) — user management, per-user AI token
-usage, and platform analytics (signups, logins, AI spend). Shares Storyteller's Supabase project;
+Internal admin dashboard for [Nibb](../story-teller) — user management, per-user AI token
+usage, and platform analytics (signups, logins, AI spend). Shares Nibb's Supabase project;
 it does not run its own backend.
 
 ## Setup
