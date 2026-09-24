@@ -1,7 +1,7 @@
 {
-  "name": "Storyteller Admin",
+  "name": "Nibb Admin",
   "short_name": "Nibb Admin",
-  "description": "Internal ops console for Storyteller (Nibb).",
+  "description": "Internal ops console for Nibb.",
   "start_url": "/?source=pwa",
   "id": "/",
   "scope": "/",

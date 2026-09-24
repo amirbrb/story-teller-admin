@@ -4,7 +4,7 @@ Guidance for Claude Code (and humans) working on this repo's UI.
 
 ## Product framing
 
-Storyteller Admin is an **internal ops tool** for the Storyteller team, not a consumer-facing
+Nibb Admin is an **internal ops tool** for the Nibb team, not a consumer-facing
 surface. It exists to let an operator look up a user, see what they've been doing (AI usage,
 spend), fix their account state (grant tokens, toggle premium/admin), and watch the platform's
 overall health (signups, logins, AI cost) at a glance. Favor density and scannability over

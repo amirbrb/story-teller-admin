@@ -70,7 +70,7 @@ export default function Login() {
   return (
     <main className={common.page}>
       <div className={`${common.card} ${styles.card}`}>
-        <h1 className={styles.heading}>Storyteller Admin</h1>
+        <h1 className={styles.heading}>Nibb Admin</h1>
         <p className={common.muted}>Sign in with an admin account.</p>
 
         <div className={styles.oauthRow}>

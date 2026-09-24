@@ -24,7 +24,7 @@ const links = [
 export default function Sidebar({ onNavigate }: Props) {
   return (
     <nav className={styles.sidebar}>
-      <div className={styles.brand}>Storyteller Admin</div>
+      <div className={styles.brand}>Nibb Admin</div>
       <ul className={styles.links}>
         {links.map((link) => (
           <li key={link.to}>
