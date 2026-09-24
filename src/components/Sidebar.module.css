@@ -45,9 +45,6 @@
 }
 
 .footer {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--color-border);
 }
