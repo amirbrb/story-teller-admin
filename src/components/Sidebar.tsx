@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
+import { useInstallPrompt } from '@/lib/useInstallPrompt'
 import Button from './Button'
 import styles from './Sidebar.module.css'
 
@@ -22,6 +23,8 @@ const links = [
 ]
 
 export default function Sidebar({ onNavigate }: Props) {
+  const { install } = useInstallPrompt()
+
   return (
     <nav className={styles.sidebar}>
       <div className={styles.brand}>Storyteller Admin</div>
@@ -40,6 +43,11 @@ export default function Sidebar({ onNavigate }: Props) {
         ))}
       </ul>
       <div className={styles.footer}>
+        {install && (
+          <Button variant="secondary" size="sm" fullWidth onClick={install}>
+            Install app
+          </Button>
+        )}
         <Button variant="ghost" size="sm" fullWidth onClick={() => supabase.auth.signOut()}>
           Sign out
         </Button>
