@@ -35,6 +35,7 @@ export type AdminUserDetail = {
   bio: string | null
   avatar_url: string | null
   adult_content_allowed: boolean
+  is_cofounder: boolean
 }
 
 export async function listUsers(search: string, limit: number, offset: number): Promise<AdminUserRow[]> {
@@ -75,6 +76,16 @@ export async function setAdmin(profileId: string, isAdmin: boolean): Promise<voi
   const { error } = await supabase.rpc('admin_set_admin', {
     p_target_profile_id: profileId,
     p_is_admin: isAdmin,
+  })
+  if (error) throw error
+}
+
+// The "Co-founder" badge on a writer's public profile (story-teller/supabase/migrations/
+// 0063_cofounder_badge.sql).
+export async function setCofounder(profileId: string, isCofounder: boolean): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_cofounder', {
+    p_target_profile_id: profileId,
+    p_is_cofounder: isCofounder,
   })
   if (error) throw error
 }
