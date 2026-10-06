@@ -298,8 +298,8 @@ export default function UserDetail() {
           <div className={styles.actionRow}>
             <span>
               {user.is_cofounder
-                ? 'Remove the Co-founder badge from their profile'
-                : 'Show a Co-founder badge on their profile'}
+                ? 'Remove the Co-founder badge from their name in the app'
+                : 'Show a Co-founder badge next to their name in the app'}
             </span>
             <Button
               variant="secondary"
@@ -420,8 +420,8 @@ export default function UserDetail() {
         description={
           pending?.type === 'cofounder'
             ? pending.next
-              ? 'Everyone who opens their profile in the app sees a Co-founder badge next to their name.'
-              : 'The badge disappears from their profile.'
+              ? 'A Co-founder badge appears next to their name across the app: their profile, story bylines, the feed and comments.'
+              : 'The badge disappears from their name across the app.'
             : pending?.type === 'admin' && pending.next
             ? 'This user will be able to view every user, their AI usage, and grant/revoke admin access.'
             : pending?.type === 'premium' && pending.next
