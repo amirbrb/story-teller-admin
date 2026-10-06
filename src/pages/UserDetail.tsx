@@ -11,6 +11,7 @@ import {
   listTokenTransactions,
   setPremium,
   setAdmin,
+  setCofounder,
   setChapterAutosave,
   setProfileFlag,
   type AdminUserDetail,
@@ -39,6 +40,7 @@ type PendingAction =
   | { type: 'grant'; amount: string; note: string }
   | { type: 'premium'; next: boolean }
   | { type: 'admin'; next: boolean }
+  | { type: 'cofounder'; next: boolean }
   | { type: 'autosave'; next: boolean }
   | { type: 'flag'; key: string; label: string; next: boolean }
   | { type: 'clearFlag'; key: string; label: string }
@@ -107,6 +109,8 @@ export default function UserDetail() {
         await setPremium(userId, pending.next)
       } else if (pending.type === 'admin') {
         await setAdmin(userId, pending.next)
+      } else if (pending.type === 'cofounder') {
+        await setCofounder(userId, pending.next)
       } else if (pending.type === 'flag') {
         await setProfileFlag(userId, pending.key, pending.next)
       } else if (pending.type === 'clearFlag') {
@@ -189,6 +193,7 @@ export default function UserDetail() {
           )}
           {user.has_pending_premium_request && <span className={styles.badgeAdmin}>Wants premium</span>}
           {user.is_admin && <span className={styles.badgeAdmin}>Admin</span>}
+          {user.is_cofounder && <span className={styles.badgeAdmin}>Co-founder</span>}
         </div>
       </div>
 
@@ -292,6 +297,21 @@ export default function UserDetail() {
 
           <div className={styles.actionRow}>
             <span>
+              {user.is_cofounder
+                ? 'Remove the Co-founder badge from their profile'
+                : 'Show a Co-founder badge on their profile'}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setPending({ type: 'cofounder', next: !user.is_cofounder })}
+            >
+              {user.is_cofounder ? 'Remove co-founder' : 'Make co-founder'}
+            </Button>
+          </div>
+
+          <div className={styles.actionRow}>
+            <span>
               {user.chapter_autosave_enabled
                 ? 'Turn off chapter autosave (in-progress chapters stop syncing to their account)'
                 : 'Turn on chapter autosave (in-progress chapters sync to their account)'}
@@ -375,7 +395,9 @@ export default function UserDetail() {
       <ConfirmDialog
         open={pending !== null}
         title={
-          pending?.type === 'grant'
+          pending?.type === 'cofounder'
+            ? pending.next ? 'Mark as co-founder?' : 'Remove co-founder badge?'
+            : pending?.type === 'grant'
             ? `Grant ${formatTokens(Number(pending.amount) || 0)} tokens?`
             : pending?.type === 'premium'
               ? pending.next
@@ -396,7 +418,11 @@ export default function UserDetail() {
                       : ''
         }
         description={
-          pending?.type === 'admin' && pending.next
+          pending?.type === 'cofounder'
+            ? pending.next
+              ? 'Everyone who opens their profile in the app sees a Co-founder badge next to their name.'
+              : 'The badge disappears from their profile.'
+            : pending?.type === 'admin' && pending.next
             ? 'This user will be able to view every user, their AI usage, and grant/revoke admin access.'
             : pending?.type === 'premium' && pending.next
               ? 'Every AI feature opens up for them immediately, and their usage costs them no tokens — this is the comped path, not a purchase.'
