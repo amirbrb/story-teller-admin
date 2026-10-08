@@ -46,6 +46,18 @@ const INTERNAL_MODEL_KEYS = [
     hint: 'Reads a chapter aloud into an MP3 when a writer asks for it through the MCP server (create_chapter_audio). Must be a text-to-speech model that can return mp3. Unlike the others, it isn\'t limited to providers that don\'t train on requests. A chapter keeps its approved audio until the writer approves a new take.',
     optional: false,
   },
+  {
+    key: 'chapter_audio_voice_he_female',
+    label: 'Chapter audio: Hebrew female voice',
+    hint: 'The default narrator for Hebrew chapters. A voice id from the Fish Audio voice library (the 32-character id in a voice page\'s fish.audio/m/… address); pick a native Hebrew speaker, or the narration gets a foreign accent. Other languages use the model\'s default voice.',
+    optional: false,
+  },
+  {
+    key: 'chapter_audio_voice_he_male',
+    label: 'Chapter audio: Hebrew male voice',
+    hint: 'Reads a Hebrew chapter when the writer asks for a male voice. A Fish Audio voice id, like the one above.',
+    optional: false,
+  },
 ] as const
 
 type ModelForm = {
@@ -282,7 +294,13 @@ export default function AiModels() {
               <input
                 value={settings[key] ?? ''}
                 onChange={(e) => setSettings({ ...settings, [key]: e.target.value })}
-                placeholder={optional ? 'OpenRouter model id (optional)' : 'OpenRouter model id'}
+                placeholder={
+                  key.startsWith('chapter_audio_voice')
+                    ? 'Fish Audio voice id'
+                    : optional
+                      ? 'OpenRouter model id (optional)'
+                      : 'OpenRouter model id'
+                }
                 aria-label={label}
               />
               {/* An optional setting must stay saveable when blank — clearing the fallback is how
