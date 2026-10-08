@@ -294,7 +294,13 @@ export default function AiModels() {
               <input
                 value={settings[key] ?? ''}
                 onChange={(e) => setSettings({ ...settings, [key]: e.target.value })}
-                placeholder={optional ? 'OpenRouter model id (optional)' : 'OpenRouter model id'}
+                placeholder={
+                  key.startsWith('chapter_audio_voice')
+                    ? 'Fish Audio voice id'
+                    : optional
+                      ? 'OpenRouter model id (optional)'
+                      : 'OpenRouter model id'
+                }
                 aria-label={label}
               />
               {/* An optional setting must stay saveable when blank — clearing the fallback is how
