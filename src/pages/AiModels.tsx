@@ -40,6 +40,12 @@ const INTERNAL_MODEL_KEYS = [
     hint: 'Powers the "continue writing" ghost-text suggestion writers trigger from the editor. Streamed and explicit-trigger rather than typed-as-you-go, but still needs to feel fast — pick for latency over quality here.',
     optional: false,
   },
+  {
+    key: 'chapter_audio_model',
+    label: 'Chapter audio',
+    hint: 'Reads a chapter aloud into an MP3 when a writer asks for it through the MCP server (create_chapter_audio). Must be a text-to-speech model that can return mp3. Unlike the others, it isn\'t limited to providers that don\'t train on requests. Audio already made keeps its old voice until it\'s regenerated.',
+    optional: false,
+  },
 ] as const
 
 type ModelForm = {
