@@ -796,3 +796,71 @@ export async function listTokenTransactions(profileId: string, limit = 50): Prom
 export function formatTokens(tokens: number): string {
   return Math.round(tokens).toLocaleString()
 }
+
+// ---------------------------------------------------------------------------------------------
+// Audit log (story-teller/supabase/migrations/0071_audit_log.sql)
+//
+// Read through admin_list_audit_events rather than a plain select so search can match email, IP,
+// story and chapter titles in one box. Every row carries snapshots (email, titles) taken when the
+// event happened, so it still reads after the chapter, story or account is gone. Read-only: the
+// log is written only by database triggers and log_chapter_read.
+// ---------------------------------------------------------------------------------------------
+
+export const AUDIT_EVENT_TYPES = [
+  'user_created',
+  'chapter_read',
+  'chapter_created',
+  'chapter_updated',
+  'chapter_deleted',
+] as const
+
+export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number]
+
+export const AUDIT_EVENT_LABELS: Record<AuditEventType, string> = {
+  user_created: 'User created',
+  chapter_read: 'Chapter read',
+  chapter_created: 'Chapter created',
+  chapter_updated: 'Chapter edited',
+  chapter_deleted: 'Chapter deleted',
+}
+
+export type AuditEventRow = {
+  id: string
+  event_type: AuditEventType
+  created_at: string
+  last_occurred_at: string
+  occurrences: number
+  user_id: string | null
+  user_email: string | null
+  ip: string | null
+  source: 'app' | 'mcp' | 'system'
+  story_id: string | null
+  story_title: string | null
+  chapter_id: string | null
+  chapter_title: string | null
+  chapter_number: number | null
+  total_count: number
+}
+
+export type AuditEventFilters = {
+  eventType?: string
+  search?: string
+  userId?: string
+}
+
+export async function listAuditEvents(
+  filters: AuditEventFilters,
+  limit: number,
+  offset: number,
+): Promise<{ rows: AuditEventRow[]; total: number }> {
+  const { data, error } = await supabase.rpc('admin_list_audit_events', {
+    p_event_type: filters.eventType || null,
+    p_search: filters.search || null,
+    p_user_id: filters.userId || null,
+    p_limit: limit,
+    p_offset: offset,
+  })
+  if (error) throw error
+  const rows = (data ?? []) as AuditEventRow[]
+  return { rows, total: rows[0]?.total_count ?? 0 }
+}

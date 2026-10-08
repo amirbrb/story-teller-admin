@@ -19,6 +19,7 @@ import Issues from './pages/Issues'
 import IssueDetail from './pages/IssueDetail'
 import ContentReviews from './pages/ContentReviews'
 import ContentReviewDetail from './pages/ContentReviewDetail'
+import AuditLog from './pages/AuditLog'
 import NotFound from './pages/NotFound'
 
 export default function App() {
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="/issues/:id" element={<IssueDetail />} />
             <Route path="/content-reviews" element={<ContentReviews />} />
             <Route path="/content-reviews/:id" element={<ContentReviewDetail />} />
+            <Route path="/audit-log" element={<AuditLog />} />
           </Route>
         </Route>
         <Route path="*" element={<NotFound />} />

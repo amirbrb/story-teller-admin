@@ -19,6 +19,7 @@ const links = [
   { to: '/system-errors', label: 'System Errors', end: false },
   { to: '/issues', label: 'Issues', end: false },
   { to: '/content-reviews', label: 'Content reviews', end: false },
+  { to: '/audit-log', label: 'Audit Log', end: false },
 ]
 
 export default function Sidebar({ onNavigate }: Props) {
