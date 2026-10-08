@@ -6,6 +6,7 @@ import {
   listAuditEvents,
   type AuditEventFilters,
   type AuditEventRow,
+  type AuditEventType,
 } from '@/lib/adminApi'
 import { formatDateTime } from '@/lib/formatters'
 import DataTable, { type Column } from '@/components/DataTable'
@@ -15,6 +16,16 @@ import common from '@/styles/common.module.css'
 import styles from './AuditLog.module.css'
 
 const PAGE_SIZE = 50
+
+const SOURCE_LABELS: Record<AuditEventRow['source'], string> = {
+  app: 'App',
+  mcp: 'MCP',
+  system: 'System',
+}
+
+function isEventType(value: string | null): value is AuditEventType {
+  return AUDIT_EVENT_TYPES.includes(value as AuditEventType)
+}
 
 const EVENT_TONES: Record<AuditEventRow['event_type'], BadgeTone> = {
   user_created: 'success',
@@ -38,28 +49,47 @@ export default function AuditLog() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const eventParam = searchParams.get('event')
+  const queryParam = searchParams.get('q') ?? ''
   const filters: AuditEventFilters = {
-    eventType: searchParams.get('event') ?? undefined,
+    // An unknown ?event= would silently match nothing while the dropdown shows "All".
+    eventType: isEventType(eventParam) ? eventParam : undefined,
     search: searchParams.get('q') ?? undefined,
     userId: searchParams.get('user') ?? undefined,
   }
   const filterKey = JSON.stringify(filters)
 
+  // Updater form, so a debounced search landing after another filter change builds on the latest
+  // URL rather than the one from when the user typed.
   function updateFilter(key: string, value: string) {
-    const next = new URLSearchParams(searchParams)
-    if (value) next.set(key, value)
-    else next.delete(key)
-    setSearchParams(next, { replace: true })
-    setPage(0)
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (value) next.set(key, value)
+        else next.delete(key)
+        return next
+      },
+      { replace: true },
+    )
   }
+
+  // Any filter change (including the sidebar link clearing them all) starts from page 1.
+  useEffect(() => {
+    setPage(0)
+  }, [filterKey])
 
   useEffect(() => {
     const handle = setTimeout(() => {
       const value = searchInput.trim()
-      if (value !== (searchParams.get('q') ?? '')) updateFilter('q', value)
+      if (value !== queryParam) updateFilter('q', value)
     }, 300)
     return () => clearTimeout(handle)
   }, [searchInput])
+
+  // Keep the box in step when the URL changes from outside it (sidebar link, back button).
+  useEffect(() => {
+    setSearchInput((current) => (current.trim() === queryParam ? current : queryParam))
+  }, [queryParam])
 
   function load() {
     let cancelled = false
@@ -142,7 +172,7 @@ export default function AuditLog() {
         return <span dir="auto">{label}</span>
       },
     },
-    { key: 'source', header: 'Via', render: (r) => (r.source === 'mcp' ? 'MCP' : r.source) },
+    { key: 'source', header: 'Via', render: (r) => SOURCE_LABELS[r.source] },
   ]
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
