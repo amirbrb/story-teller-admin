@@ -43,7 +43,7 @@ const INTERNAL_MODEL_KEYS = [
   {
     key: 'chapter_audio_model',
     label: 'Chapter audio',
-    hint: 'Reads a chapter aloud into an MP3 when a writer asks for it through the MCP server (create_chapter_audio). Must be a text-to-speech model that can return mp3. Unlike the others, it isn\'t limited to providers that don\'t train on requests. Audio already made keeps its old voice until it\'s regenerated.',
+    hint: 'Reads a chapter aloud into an MP3 when a writer asks for it through the MCP server (create_chapter_audio). Must be a text-to-speech model that can return mp3. Unlike the others, it isn\'t limited to providers that don\'t train on requests. A chapter keeps its approved audio until the writer approves a new take.',
     optional: false,
   },
 ] as const
