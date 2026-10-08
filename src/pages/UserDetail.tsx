@@ -236,6 +236,13 @@ export default function UserDetail() {
           <h2 className={styles.sectionTitle}>Actions</h2>
 
           <div className={styles.actionRow}>
+            <span>Signup, chapter reads, creates, edits and deletes, with IPs</span>
+            <Button variant="secondary" size="sm" to={`/audit-log?user=${user.id}`}>
+              Audit log
+            </Button>
+          </div>
+
+          <div className={styles.actionRow}>
             <label className={styles.grantLabel}>
               Grant tokens
               <div className={styles.grantInputs}>
