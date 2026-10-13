@@ -1,0 +1,15 @@
+// Cloudflare Worker that serves Nibb Admin (replaces Render). Static files only — no Worker code.
+// Workers Builds runs `npm run build` then `npx wrangler deploy` on every push to main.
+// See README "Deployment (Cloudflare)" and the cutover manual in story-teller (docs/cloudflare-cutover.md).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Must match the Worker's name in the Cloudflare dashboard, or Workers Builds refuses to deploy.
+  "name": "nibb-admin",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist",
+    // React Router owns routing: any path that isn't a file gets index.html (the old Render
+    // catch-all rewrite).
+    "not_found_handling": "single-page-application"
+  }
+}
