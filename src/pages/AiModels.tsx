@@ -117,13 +117,14 @@ function familyOf(id: string): string {
   return FAMILY_NAMES[key] ?? key
 }
 
-// '' -> null (no price); anything else must be a non-negative number. Returns undefined for a value
-// that isn't one, so the form can refuse it.
+// '' -> null (no price); otherwise a plain decimal with up to four places, below 1,000,000 — what
+// the column (numeric(10,4)) can hold exactly. Anything else (more places, "1e3", "0x10", too big)
+// returns undefined so the form refuses it rather than the database rounding or rejecting it.
 function parsePrice(value: string): number | null | undefined {
   const trimmed = value.trim()
   if (!trimmed) return null
-  const n = Number(trimmed)
-  return Number.isFinite(n) && n >= 0 ? n : undefined
+  if (!/^\d{1,6}(\.\d{1,4})?$/.test(trimmed)) return undefined
+  return Number(trimmed)
 }
 
 function formatUsd(n: number): string {
@@ -136,6 +137,9 @@ function formatUsd(n: number): string {
 export default function AiModels() {
   const [models, setModels] = useState<AiModelRow[]>([])
   const [prices, setPrices] = useState<Record<string, AiModelPriceRow>>({})
+  // False when the price list couldn't be read. The form then leaves prices alone on save: blank
+  // fields there mean "unknown", and saving them would clear a price that exists.
+  const [pricesLoaded, setPricesLoaded] = useState(false)
   const [costs, setCosts] = useState<Record<string, ChapterModelCostRow>>({})
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -154,13 +158,16 @@ export default function AiModels() {
     Promise.all([
       listAiModels(),
       listAiSettings(),
-      listAiModelPrices(),
+      // Also informational for the page as a whole: before story-teller's 0075 is deployed the table
+      // doesn't exist, and that shouldn't take the model list and internal settings down with it.
+      listAiModelPrices().catch(() => null),
       // Informational only: a failure here shouldn't take the editable parts of the page down.
       listChapterModelCosts().catch(() => [] as ChapterModelCostRow[]),
     ])
       .then(([modelRows, settingRows, priceRows, costRows]) => {
         setModels(modelRows)
-        setPrices(Object.fromEntries(priceRows.map((p) => [p.model_id, p])))
+        setPrices(Object.fromEntries((priceRows ?? []).map((p) => [p.model_id, p])))
+        setPricesLoaded(priceRows !== null)
         setCosts(Object.fromEntries(costRows.map((c) => [c.model_id, c])))
         setSettings(Object.fromEntries(settingRows.map((s) => [s.key, s.value])))
         setError(null)
@@ -191,7 +198,7 @@ export default function AiModels() {
     const input = parsePrice(form.input_price)
     const output = parsePrice(form.output_price)
     if (input === undefined || output === undefined) {
-      setError('Prices must be numbers of zero or more (USD per million tokens).')
+      setError('Prices must be plain numbers from 0 to 999999.9999, up to four decimal places (USD per million tokens).')
       return
     }
     // Half a price would make every estimate and fallback charge wrong in one direction.
@@ -203,13 +210,16 @@ export default function AiModels() {
     setPendingSave(form)
   }
 
-  async function runMutation(action: () => Promise<void>, successMessage: string) {
+  // Resolves true on success, so a caller can keep its form open (and the operator's input) when
+  // the save failed.
+  async function runMutation(action: () => Promise<void>, successMessage: string): Promise<boolean> {
     setBusy(true)
     setError(null)
     try {
       await action()
       setNotice(successMessage)
       load()
+      return true
     } catch (err) {
       const message = err instanceof Error ? err.message : 'The change could not be saved.'
       // The RPCs raise this when a change would disable or delete the last enabled model.
@@ -218,6 +228,10 @@ export default function AiModels() {
           ? 'At least one model must stay enabled — writers would have nothing to draft with otherwise.'
           : message,
       )
+      // A two-step save can fail after its first step landed; reload so the table shows what was
+      // actually written rather than the state before the attempt.
+      load()
+      return false
     } finally {
       setBusy(false)
     }
@@ -367,6 +381,7 @@ export default function AiModels() {
                   inputMode="decimal"
                   value={form.input_price}
                   onChange={(e) => setForm({ ...form, input_price: e.target.value })}
+                  disabled={!pricesLoaded}
                   placeholder="e.g. 2 (blank for no price)"
                 />
               </label>
@@ -376,13 +391,16 @@ export default function AiModels() {
                   inputMode="decimal"
                   value={form.output_price}
                   onChange={(e) => setForm({ ...form, output_price: e.target.value })}
+                  disabled={!pricesLoaded}
                   placeholder="e.g. 10 (blank for no price)"
                 />
               </label>
             </div>
             <p className={common.muted}>
-              Family: {form.id.trim() ? familyOf(form.id.trim()) : '—'}. Copy the prices from the model&rsquo;s
-              OpenRouter page.
+              Family: {form.id.trim() ? familyOf(form.id.trim()) : '—'}.{' '}
+              {pricesLoaded
+                ? 'Copy the prices from the model\u2019s OpenRouter page.'
+                : 'Prices couldn\u2019t be loaded, so saving leaves them as they are.'}
             </p>
             <label className={styles.checkboxRow}>
               <input
@@ -455,7 +473,9 @@ export default function AiModels() {
         description={
           pendingSave
             ? `${pendingSave.id} — ${pendingSave.is_enabled ? 'offered to writers' : 'hidden from writers'}, ${
-                pendingSave.input_price.trim()
+                !pricesLoaded
+                  ? 'price unchanged'
+                  : pendingSave.input_price.trim()
                   ? `priced at $${pendingSave.input_price.trim()} in / $${pendingSave.output_price.trim()} out per 1M tokens`
                   : 'no price (global reserve and flat fallback apply)'
               }.`
@@ -476,12 +496,22 @@ export default function AiModels() {
               sort_order: Number(target.sort_order),
               is_enabled: target.is_enabled,
             })
-            await setAiModelPrice(
-              target.id.trim(),
-              parsePrice(target.input_price) ?? null,
-              parsePrice(target.output_price) ?? null,
-            )
-          }, `Saved ${target.id.trim()}.`).then(() => setForm(null))
+            if (!pricesLoaded) return
+            try {
+              await setAiModelPrice(
+                target.id.trim(),
+                parsePrice(target.input_price) ?? null,
+                parsePrice(target.output_price) ?? null,
+              )
+            } catch (err) {
+              // The model row is already saved at this point; say so, so the operator retries only
+              // the price instead of wondering whether anything happened.
+              const message = err instanceof Error ? err.message : 'unknown error'
+              throw new Error(`The model was saved, but its price wasn't: ${message}. Fix the price and save again.`)
+            }
+          }, `Saved ${target.id.trim()}.`).then((ok) => {
+            if (ok) setForm(null)
+          })
         }}
       />
 
