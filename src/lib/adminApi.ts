@@ -103,9 +103,11 @@ export async function setChapterAutosave(profileId: string, enabled: boolean): P
 // ---------------------------------------------------------------------------------------------
 // AI model configuration (story-teller/supabase/migrations/0014_admin_ai_models.sql)
 //
-// `ai_chapter_models` is the list of models a writer can pick between when drafting. Models carry
-// no price any more (0049_premium_credit.sql): a call is billed on what it actually cost at
-// OpenRouter. `ai_settings` holds which model runs the app's internal, machine-facing calls (the
+// `ai_chapter_models` is the list of models a writer can pick between when drafting. A call is
+// still billed on what it actually cost at OpenRouter (0049_premium_credit.sql); the listed price
+// per model (`ai_chapter_model_prices`, 0075_chapter_model_costs.sql) only sizes the pre-call
+// balance check, prices a call OpenRouter returned no cost for, and seeds the "about N tokens a
+// chapter" figure writers see until real chapters replace it. `ai_settings` holds which model runs the app's internal, machine-facing calls (the
 // story bible, style analysis) — those are never writer-visible.
 // ---------------------------------------------------------------------------------------------
 
@@ -152,6 +154,54 @@ export async function upsertAiModel(model: {
 export async function deleteAiModel(id: string): Promise<void> {
   const { error } = await supabase.rpc('admin_delete_ai_model', { p_id: id })
   if (error) throw error
+}
+
+export type AiModelPriceRow = {
+  model_id: string
+  input_usd_per_mtok: number
+  output_usd_per_mtok: number
+  updated_at: string
+}
+
+// Admin-read RLS on the table itself; writers can't read it, so USD never reaches them.
+export async function listAiModelPrices(): Promise<AiModelPriceRow[]> {
+  const { data, error } = await supabase
+    .from('ai_chapter_model_prices')
+    .select('model_id, input_usd_per_mtok, output_usd_per_mtok, updated_at')
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    ...r,
+    input_usd_per_mtok: Number(r.input_usd_per_mtok),
+    output_usd_per_mtok: Number(r.output_usd_per_mtok),
+  }))
+}
+
+// Both null clears the price: the model then falls back to the global reserve and flat fallback.
+export async function setAiModelPrice(
+  modelId: string,
+  inputUsdPerMtok: number | null,
+  outputUsdPerMtok: number | null,
+): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_ai_model_price', {
+    p_model_id: modelId,
+    p_input_usd_per_mtok: inputUsdPerMtok,
+    p_output_usd_per_mtok: outputUsdPerMtok,
+  })
+  if (error) throw error
+}
+
+export type ChapterModelCostRow = {
+  model_id: string
+  typical_tokens: number | null
+  observed: boolean
+}
+
+// The same figure the writer's picker shows (get_chapter_model_costs): observed spend once a model
+// has five recent chapters, a price-based estimate before that. Enabled models only.
+export async function listChapterModelCosts(): Promise<ChapterModelCostRow[]> {
+  const { data, error } = await supabase.rpc('get_chapter_model_costs')
+  if (error) throw error
+  return data ?? []
 }
 
 export async function listAiSettings(): Promise<AiSettingRow[]> {
