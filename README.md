@@ -27,6 +27,13 @@ it does not run its own backend.
 - `npm run typecheck` — typecheck only
 - `npm run lint` — ESLint
 
+## Deployment
+
+Every merge to `main` ships: Cloudflare Workers Builds runs `npm run build` and
+`npx wrangler deploy` (see `wrangler.jsonc`). Set `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`
+as **build** variables on the `nibb-admin` Worker. The one-time move off Render is in
+story-teller's `docs/cloudflare-cutover.md`.
+
 ## Structure
 
 See `CLAUDE.md` for UI/data-access conventions. Short version: React + Vite + TypeScript,

@@ -72,6 +72,14 @@ attempt).
   for copy/text-only/column changes — reasoning about the diff plus a typecheck/build is enough
   there.
 
+## Deployment
+
+Cloudflare Workers Builds builds and publishes the app from `main` on every merge, as Workers Static
+Assets with an SPA fallback (`wrangler.jsonc`, Worker name `nibb-admin`). The `VITE_SUPABASE_*`
+values are build variables in the Worker's settings, baked in at build time. `render.yaml` is the
+old host, kept only until the cutover in story-teller's `docs/cloudflare-cutover.md` is finished.
+If the admin app's address changes, add it to Supabase Auth's redirect URLs or login bounces.
+
 ## Conventions to keep following
 
 - Styling stays CSS Modules, one `*.module.css` per component/page, matching the
